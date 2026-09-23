@@ -5,13 +5,15 @@ import { Colors, FontSize, Spacing } from '../theme';
 interface Props {
   title: string;
   children: React.ReactNode;
+  /** true = anak-anak di-render menumpuk vertikal (1 kolom penuh), tidak dijajarkan kesamping */
+  block?: boolean;
 }
 
-export default function Section({ title, children }: Props) {
+export default function Section({ title, children, block }: Props) {
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>{title}</Text>
-      <View style={styles.body}>{children}</View>
+      <View style={[styles.body, block && styles.bodyBlock]}>{children}</View>
     </View>
   );
 }
@@ -40,5 +42,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  bodyBlock: {
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
   },
 });

@@ -169,7 +169,7 @@ export default function SetupScreen() {
         />
       </Section>
 
-      <Section title="Input Spek Wajib (dipakai hitung map)">
+      <Section title="Input Spek Wajib (dipakai hitung map)" block>
         {inputIssues.length === 0 ? (
           <Text style={styles.hintLine}>
             Semua field kritis terisi. Field opsional (TB, klep, lift, thermal,
@@ -180,14 +180,14 @@ export default function SetupScreen() {
             <View key={it.key} style={[styles.warnRow, styles.warnDanger]}>
               <Text style={[styles.warnIcon, { color: Colors.danger }]}>⚠</Text>
               <Text style={styles.warnText}>
-                <Text style={styles.warnLabel}>{it.label}</Text> — {it.msg}
+                {it.label} — {it.msg}
               </Text>
             </View>
           ))
         )}
       </Section>
 
-      <Section title="Cek Kesehatan Spek">
+      <Section title="Cek Kesehatan Spek" block>
         {validateSpec(spec, stats).map((it, i) => (
           <View
             key={i}
@@ -210,7 +210,11 @@ export default function SetupScreen() {
                     : { color: Colors.ok }
               ]}
             >
-              {it.severity === "danger" ? "⚠" : it.severity === "warn" ? "!" : "✓"}
+              {it.severity === "danger"
+                ? "⚠"
+                : it.severity === "warn"
+                  ? "!"
+                  : "✓"}
             </Text>
             <Text style={styles.warnText}>{it.msg}</Text>
           </View>
@@ -643,7 +647,8 @@ export default function SetupScreen() {
         </Text>
         <Text style={styles.notes}>
           Power @ torsi puncak: {hpAtTorque.toFixed(1)} HP • Power @ limiter{" "}
-          {redlineRPM(spec).toLocaleString("id-ID")} rpm: {hpAtMax.toFixed(1)} HP
+          {redlineRPM(spec).toLocaleString("id-ID")} rpm: {hpAtMax.toFixed(1)}{" "}
+          HP
         </Text>
       </Section>
     </ScrollView>
@@ -739,9 +744,19 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(46, 204, 113, 0.10)",
     borderColor: "rgba(46, 204, 113, 0.4)"
   },
-  warnIcon: { fontSize: FontSize.md, fontWeight: "800", marginRight: Spacing.sm },
-  warnText: { color: Colors.text, fontSize: FontSize.xs, flex: 1, lineHeight: 16 },
-  warnLabel: { color: Colors.danger, fontWeight: "700" },
+  warnIcon: {
+    fontSize: FontSize.md,
+    fontWeight: "800",
+    marginRight: Spacing.sm,
+    width: 18
+  },
+  warnText: {
+    color: Colors.text,
+    fontSize: FontSize.xs,
+    flex: 1,
+    flexShrink: 1,
+    lineHeight: 16
+  },
   hintLine: {
     color: Colors.textDim,
     fontSize: FontSize.xs,
