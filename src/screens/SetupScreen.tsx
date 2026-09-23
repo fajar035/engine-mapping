@@ -10,7 +10,7 @@ import {
 import NumField from "../components/NumField";
 import Section from "../components/Section";
 import StatCard from "../components/StatCard";
-import { computeStats, horsepowerAt } from "../engine";
+import { computeStats, horsepowerAt, redlineRPM } from "../engine";
 import { useEngine } from "../engineState";
 import { Colors, FontSize, Spacing } from "../theme";
 import type { SetupKey } from "../types";
@@ -26,7 +26,7 @@ export default function SetupScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const hpAtTorque = horsepowerAt(spec, stats.torquePeakRPM);
-  const hpAtMax = horsepowerAt(spec, spec.maxRPM);
+  const hpAtMax = horsepowerAt(spec, redlineRPM(spec));
 
   const focus = SETUP_OPTIONS.find((o) => o.key === active) ?? SETUP_OPTIONS[0];
 
@@ -107,7 +107,7 @@ export default function SetupScreen() {
         <StatCard
           label="Kecepatan Piston"
           value={`${stats.maxPistonSpeed} m/s`}
-          sub={`@ ${spec.maxRPM.toLocaleString("id-ID")} rpm`}
+          sub={`@ ${redlineRPM(spec).toLocaleString("id-ID")} rpm (limiter)`}
         />
         <StatCard
           label="Injektor Butuh"
@@ -425,7 +425,18 @@ export default function SetupScreen() {
           step={500}
           min={4000}
           max={20000}
+          hint="Tinggi kolom tabel (format JUKEN 16000; jangan dirubah)"
           onChange={(v) => updateSpec({ maxRPM: v })}
+        />
+        <NumField
+          label="Limiter RPM"
+          value={spec.limiterRPM}
+          unit="rpm"
+          step={500}
+          min={0}
+          max={20000}
+          hint="Batas putaran nyata ECU (0 = ikut Max RPM). Zona AFR WOT tinggi & power peak mengikuti ini"
+          onChange={(v) => updateSpec({ limiterRPM: v })}
         />
         <NumField
           label="Step RPM"
@@ -507,8 +518,8 @@ export default function SetupScreen() {
           angka absolut. Kalibrasi akhir tetap dari dyno/afr meter di lapangan.
         </Text>
         <Text style={styles.notes}>
-          Power @ torsi puncak: {hpAtTorque.toFixed(1)} HP • Power @{" "}
-          {spec.maxRPM.toLocaleString("id-ID")} rpm: {hpAtMax.toFixed(1)} HP
+          Power @ torsi puncak: {hpAtTorque.toFixed(1)} HP • Power @ limiter{" "}
+          {redlineRPM(spec).toLocaleString("id-ID")} rpm: {hpAtMax.toFixed(1)} HP
         </Text>
       </Section>
     </ScrollView>

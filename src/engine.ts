@@ -14,6 +14,11 @@ const clamp = (v: number, lo: number, hi: number) =>
 const round1 = (v: number) => Math.round(v * 10) / 10;
 export const round2 = (v: number) => Math.round(v * 100) / 100;
 
+// Batas putaran nyata mesin = limiter ECU; kalau 0/kosong pakai tinggi tabel (maxRPM).
+export function redlineRPM(s: EngineSpec): number {
+  return Math.max(s.limiterRPM || s.maxRPM, 2000);
+}
+
 export function defaultSpec(): EngineSpec {
   return {
     name: "vario 125 Led New · 63mm",
@@ -67,7 +72,8 @@ export function defaultSpec(): EngineSpec {
 
     // Grid mapping (format JUKEN: awal 1000, step 250, mentok 16000 = 61 titik — bisa diubah user)
     idleRPM: 1000,
-    maxRPM: 16000,
+    maxRPM: 16000, // tinggi tabel JUKEN (jangan turunkan)
+    limiterRPM: 12000, // batas putaran nyata ECU milik motor gw
     rpmStep: 250,
   };
 }
@@ -109,6 +115,7 @@ export function emptySpec(): EngineSpec {
     afrWotHigh: 0,
     idleRPM: 1000,
     maxRPM: 16000,
+    limiterRPM: 0,
     rpmStep: 250,
   };
 }
@@ -145,9 +152,9 @@ export function exhaustDuration(s: EngineSpec): number {
   return s.exhaustEVO + 180 + s.exhaustEVC;
 }
 
-// Estimasi titik torsi puncak dari durasi noken, knalpot & max RPM mesin
+// Estimasi titik torsi puncak dari durasi noken, knalpot & batas putaran mesin (limiter)
 export function torquePeakRPM(s: EngineSpec): number {
-  const max = Math.max(s.maxRPM, 4000);
+  const max = redlineRPM(s);
   const factor = 0.5 + (intakeDuration(s) - 200) * 0.0025; // 200° -> 0.5, 300° -> 0.75
   // Knalpot header lebih besar dari ~0.58×bore -> powerband naik (top-end)
   const headerShift =
@@ -161,7 +168,7 @@ export function torquePeakRPM(s: EngineSpec): number {
 }
 
 export function powerPeakRPM(s: EngineSpec): number {
-  const max = Math.max(s.maxRPM, 4000);
+  const max = redlineRPM(s);
   return clamp(Math.round(torquePeakRPM(s) * 1.18), 2000, max);
 }
 
@@ -210,7 +217,7 @@ export function pistonSpeedMs(s: EngineSpec, rpm: number): number {
 const TPS_IDLE = 5; // di bawah ini = idle
 const TPS_CRUISE = 25; // cruising / jalan santai
 const TPS_ACCEL = 60; // bukaan menengah
-const WOT_HI_RPM = 0.85; // 85% maxRPM = zona rpm tinggi
+const WOT_HI_RPM = 0.85; // 85% limiter = zona rpm tinggi
 
 // Target AFR dinamis: ${tps}% bukaan → ${rpm} RPM.
 // Memakai 5 nilai AFR dari setup; fallback ke konstanta bila field masih 0 (kosong).
@@ -236,10 +243,10 @@ export function afrFor(s: EngineSpec, rpm: number, tpsPct: number): number {
     afr = accel + (wot - accel) * k;
   }
 
-  // WOT rpm tinggi: melenai sedikit menuju afrWotHigh saat rpm mendekati maxRPM.
-  const hi = s.maxRPM * WOT_HI_RPM;
+  // WOT rpm tinggi: melenai sedikit menuju afrWotHigh saat rpm mendekati limiter.
+  const hi = redlineRPM(s) * WOT_HI_RPM;
   if (tpsPct >= TPS_ACCEL && rpm > hi) {
-    const k = clamp((rpm - hi) / Math.max(s.maxRPM - hi, 1), 0, 1);
+    const k = clamp((rpm - hi) / Math.max(redlineRPM(s) - hi, 1), 0, 1);
     afr = afr + (wotHigh - afr) * k;
   }
   return afr;
@@ -301,7 +308,7 @@ export function injectionDegrees(pwMs: number, rpm: number): number {
 
 function scanPower(s: EngineSpec): { hp: number; rpm: number } {
   let best = { hp: 0, rpm: 1000 };
-  const top = Math.max(s.maxRPM, 3000);
+  const top = redlineRPM(s);
   for (let rpm = 1000; rpm <= top; rpm += 250) {
     const hp = horsepowerAt(s, rpm);
     if (hp > best.hp) best = { hp, rpm };
@@ -338,7 +345,7 @@ export function computeStats(s: EngineSpec): EngineStats {
     torquePeakRPM: torqueRPM,
     powerPeakRPM: powerRPM,
     powerPeakHP: round1(scanPower(s).hp),
-    maxPistonSpeed: round2(pistonSpeedMs(s, s.maxRPM)),
+    maxPistonSpeed: round2(pistonSpeedMs(s, redlineRPM(s))),
     injRequiredCC: round1(injTotalCC),
     injRequiredPer: round1(injRequiredPer),
     injInstalledCC: round1(injInstalledCC),

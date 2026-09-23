@@ -59,7 +59,8 @@ export interface EngineSpec {
 
   // Grid mapping
   idleRPM: number;
-  maxRPM: number;
+  maxRPM: number; // tinggi kolom tabel JUKEN (batas tabel, contoh 16000)
+  limiterRPM: number; // batas putaran nyata ECU/limiter mesin (0 = pakai maxRPM)
   rpmStep: number;
 }
 

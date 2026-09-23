@@ -73,7 +73,8 @@ const GROUPS: GuideGroup[] = [
     note: 'Membentuk kerangka tabel: dari RPM berapa mulai, sampai batasnya, dan selisih antar baris.',
     items: [
       { label: 'Idle RPM', unit: 'rpm', desc: 'Putaran stasioner (diam) — titik awal baris tabel.' },
-      { label: 'Max RPM', unit: 'rpm', desc: 'Batas putaran maksimum — baris terakhir tabel.' },
+      { label: 'Max RPM', unit: 'rpm', desc: 'Tinggi kolom tabel (format JUKEN mentok 16000 — sebaiknya jangan diubah, biar bentuk tabel cocok dengan JUKEN).' },
+      { label: 'Limiter RPM', unit: 'rpm', desc: 'Batas putaran nyata dari ECU (limiter). Zona "WOT rpm tinggi" pada AFR dan titik power peak mengikuti angka ini, bukan Max RPM. 0 = ikut Max RPM.' },
       { label: 'Step RPM', unit: 'rpm', desc: 'Selisih antar baris RPM (mis. 250).' },
     ],
   },

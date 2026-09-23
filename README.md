@@ -22,7 +22,7 @@ Semua angka dihitung otomatis dari spek (noken, seher, injector, throttle body, 
 - Spek **injector**: flow (cc/min), jumlah, tekanan bensin, dead time, **injPhaseOffset** (geser referensi sudut bila nilai Injector Timing yang disalin dirasa bergeser dari referensi ECU).
 - Spek **pasokan udara**: diameter throttle body (TB), VE maks.
 - **Bahan bakar & efisiensi**: oktan (RON), efisiensi termal.
-- **Grid mapping**: idle RPM, max RPM, step RPM (menjadi baris grid).
+- **Grid mapping**: idle RPM, max RPM, step RPM (menjadi baris grid), dan **limiter RPM** (batas putaran nyata ECU — zona AFR WOT tinggi & titik power peak mengikuti angka ini, bukan Max RPM tabel).
 
 ### 2. Analisa Mesin
 - Kapasitas cc & volume burni; IVO/IVC/EVO/EVC & overlap.
