@@ -15,6 +15,7 @@ import {
   computeStats,
   horsepowerAt,
   redlineRPM,
+  specInputIssues,
   validateSpec
 } from "../engine";
 import { useEngine } from "../engineState";
@@ -30,6 +31,9 @@ export default function SetupScreen() {
   const { spec, active, setActive, updateSpec } = useEngine();
   const stats = computeStats(spec);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const inputIssues = specInputIssues(spec);
+  const issuesByKey = new Map(inputIssues.map((i) => [i.key, i.msg]));
 
   const hpAtTorque = horsepowerAt(spec, stats.torquePeakRPM);
   const hpAtMax = horsepowerAt(spec, redlineRPM(spec));
@@ -165,6 +169,24 @@ export default function SetupScreen() {
         />
       </Section>
 
+      <Section title="Input Spek Wajib (dipakai hitung map)">
+        {inputIssues.length === 0 ? (
+          <Text style={styles.hintLine}>
+            Semua field kritis terisi. Field opsional (TB, klep, lift, thermal,
+            inlet knalpot, idle RPM) tidak memengaruhi hasil map.
+          </Text>
+        ) : (
+          inputIssues.map((it) => (
+            <View key={it.key} style={[styles.warnRow, styles.warnDanger]}>
+              <Text style={[styles.warnIcon, { color: Colors.danger }]}>⚠</Text>
+              <Text style={styles.warnText}>
+                <Text style={styles.warnLabel}>{it.label}</Text> — {it.msg}
+              </Text>
+            </View>
+          ))
+        )}
+      </Section>
+
       <Section title="Cek Kesehatan Spek">
         {validateSpec(spec, stats).map((it, i) => (
           <View
@@ -211,6 +233,7 @@ export default function SetupScreen() {
           min={0}
           max={80}
           hint="sebelum TMA"
+          warn={issuesByKey.get("intakeIVO")}
           onChange={(v) => updateSpec({ intakeIVO: v })}
         />
         <NumField
@@ -221,6 +244,7 @@ export default function SetupScreen() {
           min={0}
           max={110}
           hint="sesudah TMB"
+          warn={issuesByKey.get("intakeIVO")}
           onChange={(v) => updateSpec({ intakeIVC: v })}
         />
         <NumField
@@ -231,6 +255,7 @@ export default function SetupScreen() {
           min={0}
           max={110}
           hint="sebelum TMB"
+          warn={issuesByKey.get("exhaustEVO")}
           onChange={(v) => updateSpec({ exhaustEVO: v })}
         />
         <NumField
@@ -241,6 +266,7 @@ export default function SetupScreen() {
           min={0}
           max={80}
           hint="sesudah TMA"
+          warn={issuesByKey.get("exhaustEVO")}
           onChange={(v) => updateSpec({ exhaustEVC: v })}
         />
         <NumField
@@ -250,6 +276,7 @@ export default function SetupScreen() {
           step={0.05}
           min={5}
           max={15}
+          hint="opsional — ceiling HP saja"
           onChange={(v) => updateSpec({ intakeLift: v })}
         />
         <NumField
@@ -259,6 +286,7 @@ export default function SetupScreen() {
           step={0.05}
           min={5}
           max={15}
+          hint="opsional — tidak dipakai hitung map"
           onChange={(v) => updateSpec({ exhaustLift: v })}
         />
       </Section>
@@ -271,6 +299,7 @@ export default function SetupScreen() {
           step={0.5}
           min={40}
           max={120}
+          warn={issuesByKey.get("boreMM")}
           onChange={(v) => updateSpec({ boreMM: v })}
         />
         <NumField
@@ -280,6 +309,7 @@ export default function SetupScreen() {
           step={0.5}
           min={40}
           max={120}
+          warn={issuesByKey.get("strokeMM")}
           onChange={(v) => updateSpec({ strokeMM: v })}
         />
         <NumField
@@ -289,6 +319,7 @@ export default function SetupScreen() {
           step={0.25}
           min={0}
           max={2}
+          hint="opsional — dipakai sbg penambah bore"
           onChange={(v) => updateSpec({ oversizeMM: v })}
         />
         <NumField
@@ -298,6 +329,7 @@ export default function SetupScreen() {
           step={1}
           min={1}
           max={6}
+          warn={issuesByKey.get("cylinders")}
           onChange={(v) => updateSpec({ cylinders: v })}
         />
         <NumField
@@ -307,6 +339,7 @@ export default function SetupScreen() {
           step={0.5}
           min={7}
           max={16}
+          warn={issuesByKey.get("compressionRatio")}
           onChange={(v) => updateSpec({ compressionRatio: v })}
         />
       </Section>
@@ -319,6 +352,7 @@ export default function SetupScreen() {
           step={5}
           min={20}
           max={1000}
+          warn={issuesByKey.get("injectorFlowCC")}
           onChange={(v) => updateSpec({ injectorFlowCC: v })}
         />
         <NumField
@@ -328,6 +362,7 @@ export default function SetupScreen() {
           step={1}
           min={1}
           max={6}
+          warn={issuesByKey.get("injectorCount")}
           onChange={(v) => updateSpec({ injectorCount: v })}
         />
         <NumField
@@ -337,6 +372,7 @@ export default function SetupScreen() {
           step={0.5}
           min={1}
           max={6}
+          warn={issuesByKey.get("fuelPressureBar")}
           onChange={(v) => updateSpec({ fuelPressureBar: v })}
         />
         <NumField
@@ -346,6 +382,7 @@ export default function SetupScreen() {
           step={0.05}
           min={0}
           max={2}
+          warn={issuesByKey.get("injectorDeadTime")}
           onChange={(v) => updateSpec({ injectorDeadTime: v })}
         />
         <NumField
@@ -355,6 +392,7 @@ export default function SetupScreen() {
           step={1}
           min={16}
           max={60}
+          hint="opsional — statistik TB vs bore saja"
           onChange={(v) => updateSpec({ throttleBodyMM: v })}
         />
         <NumField
@@ -365,6 +403,7 @@ export default function SetupScreen() {
           min={0.7}
           max={1.15}
           hint="1.00 = 100%"
+          warn={issuesByKey.get("veMax")}
           onChange={(v) => updateSpec({ veMax: v })}
         />
         <NumField
@@ -397,6 +436,7 @@ export default function SetupScreen() {
           step={0.5}
           min={18}
           max={48}
+          hint="opsional — statistik rasio klep & ceiling HP"
           onChange={(v) => updateSpec({ valveIntakeMM: v })}
         />
         <NumField
@@ -406,6 +446,7 @@ export default function SetupScreen() {
           step={0.5}
           min={18}
           max={42}
+          hint="opsional — statistik rasio klep"
           onChange={(v) => updateSpec({ valveExhaustMM: v })}
         />
         <NumField
@@ -416,6 +457,7 @@ export default function SetupScreen() {
           min={20}
           max={60}
           hint="ujung taper, mis. 30-34-38 = 38"
+          warn={issuesByKey.get("exhaustP1MM")}
           onChange={(v) => updateSpec({ exhaustP1MM: v })}
         />
         <NumField
@@ -425,6 +467,7 @@ export default function SetupScreen() {
           step={1}
           min={20}
           max={60}
+          hint="opsional — tidak dipakai hitung map"
           onChange={(v) => updateSpec({ exhaustInletMM: v })}
         />
         <NumField
@@ -434,6 +477,8 @@ export default function SetupScreen() {
           step={1}
           min={20}
           max={70}
+          hint="ujung megaphone; dipakai utk posisi puncak torsi"
+          warn={issuesByKey.get("exhaustOutletMM")}
           onChange={(v) => updateSpec({ exhaustOutletMM: v })}
         />
       </Section>
@@ -446,6 +491,7 @@ export default function SetupScreen() {
           step={1}
           min={82}
           max={100}
+          warn={issuesByKey.get("octane")}
           onChange={(v) => updateSpec({ octane: v })}
         />
         <NumField
@@ -455,7 +501,7 @@ export default function SetupScreen() {
           step={0.01}
           min={0.15}
           max={0.45}
-          hint="fraksi 0-1, ~0.30 mesin 4tak racy"
+          hint="opsional — estimasi HP saja (statistik)"
           onChange={(v) => updateSpec({ thermalEff: v })}
         />
         <NumField
@@ -499,6 +545,7 @@ export default function SetupScreen() {
           min={4000}
           max={20000}
           hint="Tinggi kolom tabel (format JUKEN 16000; jangan dirubah)"
+          warn={issuesByKey.get("maxRPM")}
           onChange={(v) => updateSpec({ maxRPM: v })}
         />
         <NumField
@@ -535,6 +582,7 @@ export default function SetupScreen() {
           min={10}
           max={17}
           hint="acuan 13.5–13.8"
+          warn={issuesByKey.get("afrIdle")}
           onChange={(v) => updateSpec({ afrIdle: v })}
         />
         <NumField
@@ -545,6 +593,7 @@ export default function SetupScreen() {
           min={10}
           max={17}
           hint="acuan 13.5–13.8"
+          warn={issuesByKey.get("afrCruise")}
           onChange={(v) => updateSpec({ afrCruise: v })}
         />
         <NumField
@@ -555,6 +604,7 @@ export default function SetupScreen() {
           min={10}
           max={17}
           hint="acuan 13.0–13.5"
+          warn={issuesByKey.get("afrAccel")}
           onChange={(v) => updateSpec({ afrAccel: v })}
         />
         <NumField
@@ -565,6 +615,7 @@ export default function SetupScreen() {
           min={10}
           max={17}
           hint="acuan 12.5–13.0"
+          warn={issuesByKey.get("afrWot")}
           onChange={(v) => updateSpec({ afrWot: v })}
         />
         <NumField
@@ -689,5 +740,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(46, 204, 113, 0.4)"
   },
   warnIcon: { fontSize: FontSize.md, fontWeight: "800", marginRight: Spacing.sm },
-  warnText: { color: Colors.text, fontSize: FontSize.xs, flex: 1, lineHeight: 16 }
+  warnText: { color: Colors.text, fontSize: FontSize.xs, flex: 1, lineHeight: 16 },
+  warnLabel: { color: Colors.danger, fontWeight: "700" },
+  hintLine: {
+    color: Colors.textDim,
+    fontSize: FontSize.xs,
+    lineHeight: 16
+  }
 });

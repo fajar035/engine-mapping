@@ -10,6 +10,7 @@ interface Props {
   min?: number;
   max?: number;
   hint?: string;
+  warn?: string;
   onChange: (v: number) => void;
 }
 
@@ -21,6 +22,7 @@ export default function NumField({
   min,
   max,
   hint,
+  warn,
   onChange,
 }: Props) {
   const [focused, setFocused] = useState(false);
@@ -47,7 +49,11 @@ export default function NumField({
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
       <TextInput
-        style={[styles.input, focused && styles.inputFocused]}
+        style={[
+          styles.input,
+          focused && styles.inputFocused,
+          warn && !focused && styles.inputWarn,
+        ]}
         value={parsed}
         keyboardType="numeric"
         onFocus={() => {
@@ -65,6 +71,7 @@ export default function NumField({
         }}
         returnKeyType="done"
       />
+      {warn ? <Text style={styles.warnText}>{warn}</Text> : null}
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>
   );
@@ -86,5 +93,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
   },
   inputFocused: { borderColor: Colors.accent },
+  inputWarn: { borderColor: Colors.danger },
   hint: { color: Colors.textDim, fontSize: FontSize.xs, marginTop: 3 },
+  warnText: { color: Colors.danger, fontSize: FontSize.xs, marginTop: 3 },
 });

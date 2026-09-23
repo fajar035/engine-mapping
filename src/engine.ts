@@ -104,8 +104,9 @@ export function defaultSpec(): EngineSpec {
   };
 }
 
-// Setup Umum: semua value 0 (kosong) — user mengisi sendiri.
-// Grid mapping tetap dipakai sebagai kerangka agar tabel tetap tergambar sebelum diisi.
+// Setup Umum: field yang DIPAKAI hitung map dimulai 0 (kosong — user mengisi,
+// aplikasi memberi tanda alert bila 0). Field opsional (tidak dipakai hitung map)
+// diberi nilai default wajar supaya tidak menyesatkan.
 export function emptySpec(): EngineSpec {
   return {
     name: "Setup Umum",
@@ -118,31 +119,31 @@ export function emptySpec(): EngineSpec {
     intakeIVC: 0,
     exhaustEVO: 0,
     exhaustEVC: 0,
-    intakeLift: 0,
-    exhaustLift: 0,
+    intakeLift: 8.8, // opsional (statistik)
+    exhaustLift: 9.1, // opsional (tidak dipakai)
     injectorFlowCC: 0,
     injectorCount: 1,
     fuelPressureBar: 0,
     injectorDeadTime: 0,
-    throttleBodyMM: 0,
+    throttleBodyMM: 32, // opsional (statistik TB)
     veMax: 0,
     altitudeM: 0,
-    airTempC: 20,
-    valveIntakeMM: 0,
-    valveExhaustMM: 0,
+    airTempC: 20, // netral
+    valveIntakeMM: 30, // opsional (statistik)
+    valveExhaustMM: 25, // opsional (statistik)
     exhaustP1MM: 0,
-    exhaustInletMM: 0,
-    exhaustOutletMM: 0,
+    exhaustInletMM: 38, // opsional (tidak dipakai)
+    exhaustOutletMM: 0, // dipakai rumus (taper megaphone) — alert bila 0
     octane: 0,
-    thermalEff: 0,
+    thermalEff: 0.3, // opsional (estimasi HP)
     injPhaseOffset: 0,
-    ignBaseOffset: 0,
+    ignBaseOffset: 9, // acuan JUKEN +9° (bawaan)
     afrIdle: 0,
     afrCruise: 0,
     afrAccel: 0,
     afrWot: 0,
     afrWotHigh: 0,
-    idleRPM: 1000,
+    idleRPM: 1600, // referensi (tabel tetap 1000)
     maxRPM: 16000,
     limiterRPM: 0,
     rpmStep: 250,
@@ -519,4 +520,109 @@ export function validateSpec(s: EngineSpec, stats: EngineStats): SpecWarning[] {
 
   if (w.length === 0) push('ok', 'Spek terlihat konsisten. Tetap kalibrasi final dengan AFR meter/dyno.');
   return w;
+}
+
+// --- Meta field spek untuk UI Setup ---
+// isMap: ikut diperhitungkan dalam Base Map / Ignition / Injector Timing.
+// Unused: field yang TIDAK dipakai rumus (hanya statistik/preview/guardrail) —
+// 0 pada field ini TIDAK merusak map, jadi tetap bernilai default yang wajar.
+export interface SpecFieldMeta {
+  label: string;
+  isMap: boolean; // dipakai hitung map
+  unused?: boolean; // sama sekali tidak dipakai rumus mana pun
+  reason: string;
+}
+
+export const SPEC_FIELDS: Record<keyof EngineSpec, SpecFieldMeta> = {
+  name: { label: 'Nama Setup', isMap: false, unused: true, reason: 'Label saja' },
+  boreMM: { label: 'Bore', isMap: true, reason: 'Volume silinder → Base Map' },
+  strokeMM: { label: 'Stroke', isMap: true, reason: 'Volume silinder → Base Map & kecepatan piston' },
+  cylinders: { label: 'Silinder', isMap: true, reason: 'Volume total → Base Map' },
+  oversizeMM: { label: 'Over Size', isMap: true, reason: 'Bore asli → volume → Base Map' },
+  compressionRatio: { label: 'Rasio Kompresi', isMap: true, reason: 'Timing Ignition & volume burni' },
+  intakeIVO: { label: 'IN Buka', isMap: true, reason: 'Durasi cam → puncak torsi, EOI, ignition' },
+  intakeIVC: { label: 'IN Tutup', isMap: true, reason: 'Durasi cam → puncak torsi' },
+  exhaustEVO: { label: 'EX Buka', isMap: true, reason: 'Durasi cam → puncak torsi' },
+  exhaustEVC: { label: 'EX Tutup', isMap: true, reason: 'Durasi cam & overlap → puncak torsi, ignition' },
+  intakeLift: { label: 'Lift Intake', isMap: false, unused: true, reason: 'Hanya estimasi HP ceiling (statistik)' },
+  exhaustLift: { label: 'Lift Exhaust', isMap: false, unused: true, reason: 'Tidak dipakai sama sekali' },
+  injectorFlowCC: { label: 'Flow Injektor', isMap: true, reason: 'Base Map & duty cycle' },
+  injectorCount: { label: 'Jumlah Injektor', isMap: true, reason: 'Base Map per injector' },
+  fuelPressureBar: { label: 'Tekanan Bensin', isMap: true, reason: 'Flow nyata injector → Base Map' },
+  injectorDeadTime: { label: 'Dead Time', isMap: true, reason: 'Offset durasi injeksi → Base Map' },
+  throttleBodyMM: { label: 'Diameter TB', isMap: false, unused: true, reason: 'Hanya rasio TB vs bore (statistik)' },
+  veMax: { label: 'VE Maks', isMap: true, reason: 'Aliran udara → Base Map' },
+  altitudeM: { label: 'Ketinggian', isMap: true, reason: 'Densitas udara → Base Map' },
+  airTempC: { label: 'Suhu Intake', isMap: true, reason: 'Densitas udara → Base Map' },
+  valveIntakeMM: { label: 'Klep Intake', isMap: false, unused: true, reason: 'Hanya rasio klep & ceiling HP (statistik)' },
+  valveExhaustMM: { label: 'Klep Exhaust', isMap: false, unused: true, reason: 'Hanya rasio klep (statistik)' },
+  exhaustP1MM: { label: 'Header P1', isMap: true, reason: 'Puncak torsi & posisi powerband' },
+  exhaustInletMM: { label: 'Inlet Knalpot', isMap: false, unused: true, reason: 'Tidak dipakai sama sekali' },
+  exhaustOutletMM: { label: 'Outlet Knalpot', isMap: true, reason: 'Taper megaphone → puncak torsi' },
+  octane: { label: 'Oktan', isMap: true, reason: 'Timing Ignition' },
+  thermalEff: { label: 'Efisiensi Termal', isMap: false, unused: true, reason: 'Hanya estimasi HP (statistik)' },
+  injPhaseOffset: { label: 'Offset Fase Injeksi', isMap: true, reason: 'Sudut EOI n Timing' },
+  ignBaseOffset: { label: 'Offset Bacaan Ignition', isMap: true, reason: 'Timing Ignition' },
+  afrIdle: { label: 'AFR Idle', isMap: true, reason: 'Target Base Map zona idle' },
+  afrCruise: { label: 'AFR Cruising', isMap: true, reason: 'Target Base Map zona menjelajah' },
+  afrAccel: { label: 'AFR Akselerasi', isMap: true, reason: 'Target Base Map zona menengah' },
+  afrWot: { label: 'AFR WOT', isMap: true, reason: 'Target Base Map zona beban penuh' },
+  afrWotHigh: { label: 'AFR WOT Tinggi', isMap: true, reason: 'Target Base Map WOT rpm tinggi' },
+  idleRPM: { label: 'Idle RPM', isMap: false, unused: true, reason: 'Referensi saja (tabel tetap mulai 1000)' },
+  maxRPM: { label: 'Max RPM', isMap: true, reason: 'Tinggi tabel & aliran batas' },
+  limiterRPM: { label: 'Limiter RPM', isMap: true, reason: 'Batas putaran → puncak torsi/power, AFR high' },
+  rpmStep: { label: 'RPM Step', isMap: true, reason: 'Pola kolom RPM tabel JUKEN' },
+};
+
+// Field yang TIDAK dipakai hitung map — boleh 0 tanpa merusak tabel.
+export const UNUSED_MAP_FIELDS = (Object.keys(SPEC_FIELDS) as (keyof EngineSpec)[]).filter(
+  (k) => SPEC_FIELDS[k].unused,
+);
+
+// Field yang DIPAKAI hitung map — value 0 / tidak wajar = tabel hasil salah.
+export interface SpecInputIssue {
+  key: keyof EngineSpec;
+  label: string;
+  msg: string;
+}
+
+export function specInputIssues(s: EngineSpec): SpecInputIssue[] {
+  const out: SpecInputIssue[] = [];
+  const add = (key: keyof EngineSpec, msg: string) =>
+    out.push({ key, label: SPEC_FIELDS[key].label, msg });
+
+  // Dimensi mesin wajib > 0
+  if (!s.boreMM) add('boreMM', '0 — hasil Base Map ikut 0. Isi diameter piston.');
+  if (!s.strokeMM) add('strokeMM', '0 — hasil Base Map ikut 0. Isi langkah piston.');
+  if (!s.cylinders) add('cylinders', '0 — volume total 0.');
+
+  // Injector wajib
+  if (!s.injectorFlowCC) add('injectorFlowCC', '0 — Base Map jadi 0 ms (fallback tanpa injector).');
+  if (!s.injectorCount) add('injectorCount', '0 — tidak ada injector terhitung.');
+  if (!s.fuelPressureBar) add('fuelPressureBar', '0 — flow injector dianggapkan 0.5 bar (sangat berkurang).');
+  if (!s.injectorDeadTime) add('injectorDeadTime', '0 — PW tanpa dead time berlebih pendek di low rpm.');
+
+  // Udara wajib
+  if (!s.veMax) add('veMax', '0 — aliran udara 0 g/s, Base Map 0 ms.');
+  if (!s.maxRPM) add('maxRPM', '0 — tabel tidak punya tinggi kolom (pakai 16000).');
+
+  // Ignition wajib
+  if (!s.compressionRatio) add('compressionRatio', '0 — timing ignition tidak terkompensasi CR.');
+  if (!s.octane) add('octane', '0 — timing ignition dianggapkan oktan 92.');
+
+  // AFR wajib (0 = pakai acuan bawaan)
+  if (!s.afrIdle) add('afrIdle', '0 — pakai acuan bawaan 13.8.');
+  if (!s.afrCruise) add('afrCruise', '0 — pakai acuan bawaan 13.8.');
+  if (!s.afrAccel) add('afrAccel', '0 — pakai acuan bawaan.');
+  if (!s.afrWot) add('afrWot', '0 — pakai acuan bawaan 12.4.');
+
+  // Cam wajib (0 = durasi tidak valid)
+  if (!s.intakeIVO && !s.intakeIVC) add('intakeIVO', 'Buka+tutup intake 0 — durasi cam lenyap.');
+  if (!s.exhaustEVO && !s.exhaustEVC) add('exhaustEVO', 'Buka+tutup exhaust 0 — durasi cam lenyap.');
+
+  // Knalpot wajib
+  if (!s.exhaustP1MM) add('exhaustP1MM', '0 — puncak torsi/posisi powerband tanpa acuan header.');
+  if (!s.exhaustOutletMM) add('exhaustOutletMM', '0 — taper megaphone tanpa acuan outlet.');
+
+  return out;
 }
