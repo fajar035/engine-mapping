@@ -23,7 +23,6 @@ export function defaultSpec(): EngineSpec {
     cylinders: 1,
     oversizeMM: 0,
     compressionRatio: 12.8,
-    rodLengthMM: 0,
 
     // Noken As (event klep, derajat crank)
     intakeIVO: 29, // IN buka °BTDC
@@ -81,7 +80,6 @@ export function emptySpec(): EngineSpec {
     cylinders: 1,
     oversizeMM: 0,
     compressionRatio: 0,
-    rodLengthMM: 0,
     intakeIVO: 0,
     intakeIVC: 0,
     exhaustEVO: 0,

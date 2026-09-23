@@ -13,6 +13,7 @@ import FuelScreen from "./src/screens/FuelScreen";
 import IgnitionScreen from "./src/screens/IgnitionScreen";
 import InjectorScreen from "./src/screens/InjectorScreen";
 import SetupScreen from "./src/screens/SetupScreen";
+import GuideScreen from "./src/screens/GuideScreen";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -135,6 +136,16 @@ export default function App() {
                 title: "Inj. Timing",
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name="hourglass" size={size} color={color} />
+                )
+              }}
+            />
+            <Tab.Screen
+              name="Guide"
+              component={GuideScreen}
+              options={{
+                title: "Panduan",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="book" size={size} color={color} />
                 )
               }}
             />

@@ -56,6 +56,81 @@ Semua angka dihitung otomatis dari spek (noken, seher, injector, throttle body, 
 
 ---
 
+## Penjelasan Setiap Input (Tab Setup)
+
+Semua angka dimasukkan lewat tab **Setup**. Penjelasan tiap input diurutkan per kartu/section yang tampil di layar.
+
+### Analisa Mesin (hasil hitung, bukan input)
+Otomatis dihitung dari spek yang diisi — lihat daftar nilai di bawah tiap input di poin berikut.
+
+### Noken As & Klep
+| Input | Satuan | Artinya |
+|---|---|---|
+| **IN Buka** | ° BTDC | Kapan klep hisap mulai membuka, sebelum piston di titik mati atas (TMA). |
+| **IN Tutup** | ° ABDC | Kapan klep hisap menutup, setelah piston melewati titik mati bawah (TMB). |
+| **EX Buka** | ° BBDC | Kapan klep buang mulai membuka, sebelum piston mencapai TMB. |
+| **EX Tutup** | ° ATDC | Kapan klep buang menutup, setelah piston melewati TMA. |
+| **Lift Intake** | mm | Tinggi angkat maksimum klep hisap (tebal "buka"-nya noken as). |
+| **Lift Exhaust** | mm | Tinggi angkat maksimum klep buang. |
+
+> Durasi & overlap dihitung otomatis: `durasi = buka + 180 + tutup`, `overlap = IN buka + EX tutup`. Ini yang menentukan karakter tenaga (top/bottom).
+
+### Mesin
+| Input | Satuan | Artinya |
+|---|---|---|
+| **Bore** | mm | Diameter lubang silinder (garis tengah piston). |
+| **Stroke** | mm | Jarak tempuh piston dari titik mati atas ke bawah. |
+| **Over Size** | mm | Tambahan diameter dari oversize piston (mis. 0.25/0.50). Real bore = bore + oversize. |
+| **Silinder** | bh | Jumlah silinder (motor standar = 1). |
+| **Rasio Kompresi** | :1 | Perbandingan volume silinder dgn ruang bakar (mis. 11:1). |
+
+### Injector & TB
+| Input | Satuan | Artinya |
+|---|---|---|
+| **Flow Injektor** | cc/min | Kapasitas semprotan injektor per menit (angka di badan injektor, biasanya @ 3 bar). |
+| **Jumlah** | bh | Banyaknya injektor terpasang (motor umumnya 1). |
+| **Tekanan Bensin** | bar | Tekanan bahan bakar di jalur injektor (cek regulator/pompa). |
+| **Dead Time** | ms | Selisih waktu antara injektor "diperintah nyala" sampai bensin benar-benar keluar. |
+| **Diameter TB** | mm | Diameter lubang throttle body (body kolter) — pintu masuk udara. |
+| **VE Maks** | x | Efisiensi pengisian silinder maksimum (1.00 = 100%, mesin standar ~0.85–0.95, balap >1). |
+
+### Klep & Knalpot
+| Input | Satuan | Artinya |
+|---|---|---|
+| **Klep Intake** | mm | Diameter daun klep hisap. |
+| **Klep Exhaust** | mm | Diameter daun klep buang. |
+| **Header P1** | mm | Ukuran pipa header terlihat (ujung taper) — untuk hitung power band. |
+| **Inlet Knalpot** | mm | Diameter saluran masuk knalpot (ujung header masuk knalpot). |
+| **Outlet Knalpot** | mm | Diameter saluran keluar knalpot (ujung belakang). |
+
+### Bahan Bakar & Efisiensi
+| Input | Satuan | Artinya |
+|---|---|---|
+| **Oktan** | RON | Angka oktan bahan bakar yang dipakai (92/95/98). |
+| **Efisiensi Termal** | (0–1) | Seberapa efisien mesin mengubah bahan bakar jadi tenaga (~0.30 utk mesin 4-tak racy). |
+| **Offset Fase Injeksi** | ° | Geser acuan sudut Injector Timing bila hasil berasa bergeser dari referensi ECU. |
+
+### Grid Mapping
+| Input | Satuan | Artinya |
+|---|---|---|
+| **Idle RPM** | rpm | Putaran idle (stasioner) — titik awal baris tabel. |
+| **Max RPM** | rpm | Batas putaran maksimum — baris terakhir tabel. |
+| **Step RPM** | rpm | Selisih antar baris RPM (mis. 250). |
+
+### Target AFR (per kondisi)
+AFR = perbandingan udara : bensin yang terbakar (air fuel ratio). Semakin kecil angkanya, semakin kaya (bensin lebih banyak).
+| Input | Acuan 4-tak | Artinya |
+|---|---|---|
+| **AFR Idle** | 13.8–14.7 | Kondisi stasioner / diam. |
+| **AFR Cruising** | 14.0–14.7 | Jalan santai, putaran stabil. |
+| **AFR Akselerasi** | 13.0–13.5 | Bukaan gas menengah / ngebut. |
+| **AFR WOT** | 12.5–13.0 | Gas penuh (WOT) beban tinggi. |
+| **AFR WOT+RPM tinggi** | 12.5–12.8 | Gas penuh pada rpm tinggi (proteksi mesin). |
+
+> Nilai 0 = kosong/belum diisi → fallback ke acuan umum. Setelah mengubah AFR, tekan **«Generate ulang»** di tab Base Map.
+
+---
+
 ## Teknologi
 
 | Komponen | Pilihan |

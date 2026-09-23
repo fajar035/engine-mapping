@@ -15,7 +15,6 @@ export interface EngineSpec {
   cylinders: number;
   oversizeMM: number;
   compressionRatio: number;
-  rodLengthMM: number;
 
   // Noken As (event buka/tutup klep dalam derajat crank)
   intakeIVO: number; // IN buka: ° sebelum TMA (BTDC)

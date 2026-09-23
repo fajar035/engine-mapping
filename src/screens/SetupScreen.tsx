@@ -130,7 +130,6 @@ export default function SetupScreen() {
         <NumField label="Over Size" value={spec.oversizeMM} unit="mm" step={0.25} min={0} max={2} onChange={(v) => updateSpec({ oversizeMM: v })} />
         <NumField label="Silinder" value={spec.cylinders} unit="bh" step={1} min={1} max={6} onChange={(v) => updateSpec({ cylinders: v })} />
         <NumField label="Rasio Kompresi" value={spec.compressionRatio} unit=":1" step={0.5} min={7} max={16} onChange={(v) => updateSpec({ compressionRatio: v })} />
-        <NumField label="Panjang Batang" value={spec.rodLengthMM} unit="mm" step={0.5} min={0} max={200} hint="0 = tak tahu" onChange={(v) => updateSpec({ rodLengthMM: v })} />
       </Section>
 
       <Section title="Injector & TB">
