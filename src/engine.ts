@@ -56,12 +56,14 @@ export function defaultSpec(): EngineSpec {
     thermalEff: 0.3,
     injPhaseOffset: 0,
 
-    // Target AFR per kondisi (default setup Motor Gw — dari range acuan tuning 4tak)
-    afrIdle: 14.3, // idle (13.8–14.7)
-    afrCruise: 14.4, // jalan santai (14.0–14.7)
-    afrAccel: 13.3, // bukaan menengah (13.0–13.5)
-    afrWot: 12.8, // WOT / beban tinggi (12.5–13.0)
-    afrWotHigh: 12.7, // WOT + rpm tinggi (12.5–12.8)
+    // Target AFR per kondisi (default setup Motor Gw — bore-up/drag, CR 12.8, oktan 98:
+    // sedikit lebih kaya dari standard tune biar aman dari detonasi/hot, idle lebih kaya
+    // karena overlap cam besar bikin vacuum idle rendah)
+    afrIdle: 13.8, // idle (cam besar: 13.5–13.8; huruf lembut standar 13.8–14.7)
+    afrCruise: 13.8, // jalan santai (CR tinggi: 13.5–14.0)
+    afrAccel: 13.0, // bukaan menengah (12.8–13.2)
+    afrWot: 12.6, // WOT / beban tinggi (bore-up drag: 12.4–12.8)
+    afrWotHigh: 12.4, // WOT + rpm tinggi (lebih kaya utk dinginkan, 12.2–12.5)
 
     // Grid mapping (format JUKEN: awal 1000, step 250, mentok 16000 = 61 titik — bisa diubah user)
     idleRPM: 1000,
