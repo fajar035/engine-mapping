@@ -14,6 +14,7 @@ import IgnitionScreen from "./src/screens/IgnitionScreen";
 import InjectorScreen from "./src/screens/InjectorScreen";
 import SetupScreen from "./src/screens/SetupScreen";
 import GuideScreen from "./src/screens/GuideScreen";
+import DisclaimerModal from "./src/components/DisclaimerModal";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -77,6 +78,7 @@ export default function App() {
       <EngineProvider>
         <NavigationContainer theme={navTheme}>
           <StatusBar style="light" />
+          <DisclaimerModal />
           <Tab.Navigator
             screenOptions={{
               headerStyle: { backgroundColor: Colors.surfaceAlt },
