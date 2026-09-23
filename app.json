@@ -4,7 +4,7 @@
     "slug": "engine-mapping",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon/android/playstore-icon.png",
+    "icon": "./assets/icon/ios/AppIcon-1024.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0c0f14",
     "ios": {
@@ -15,9 +15,9 @@
       "package": "com.rigging.enginemapping",
       "adaptiveIcon": {
         "backgroundColor": "#0c0f14",
-        "foregroundImage": "./assets/icon/android/playstore-icon.png",
+        "foregroundImage": "./assets/icon/android/adaptive-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/icon/android/playstore-icon.png"
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
