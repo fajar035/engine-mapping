@@ -47,7 +47,7 @@ export function defaultSpec(): EngineSpec {
     valveExhaustMM: 25,
 
     // Knalpot (drag pipe)
-    exhaustP1MM: 38,
+    exhaustP1MM: 30,
     exhaustInletMM: 38,
     exhaustOutletMM: 45,
 
