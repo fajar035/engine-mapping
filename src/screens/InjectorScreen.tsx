@@ -12,7 +12,8 @@ import { useCopy } from '../useCopy';
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
 export default function InjectorScreen() {
-  const { spec, rpms, baseMap, injOffset, setInjOffset, resetInj } = useEngine();
+  const { spec, rpms, baseMap, injOffset, setInjOffset, resetInj, undo, canUndo, undoDepth } =
+    useEngine();
   const [edit, setEdit] = useState<{ r: number; c: number } | null>(null);
   const { copiedTps, copiedAll, copy, copyAllMap } = useCopy(rpms);
   const baseEoi = useMemo(() => baseEoiDeg(spec), [spec]);
@@ -75,6 +76,15 @@ export default function InjectorScreen() {
         <View style={styles.btnRow}>
           <Pressable style={styles.resetBtn} onPress={resetInj}>
             <Text style={styles.resetText}>Reset ke Baseline</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.resetBtn, !canUndo && styles.btnDisabled]}
+            disabled={!canUndo}
+            onPress={undo}
+          >
+            <Text style={[styles.resetText, !canUndo && styles.btnDisabledText]}>
+              Undo{undoDepth > 0 ? ` (${undoDepth})` : ''}
+            </Text>
           </Pressable>
           <Pressable style={[styles.resetBtn, styles.btnCopy]} onPress={grid.onCopyAll}>
             <Text style={[styles.resetText, styles.btnCopyText]}>Salin Semua</Text>
@@ -156,6 +166,8 @@ const styles = StyleSheet.create({
   },
   resetText: { color: Colors.accent, fontSize: FontSize.sm, fontWeight: '700' },
   btnRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  btnDisabled: { opacity: 0.4 },
+  btnDisabledText: { color: Colors.textDim },
   btnCopy: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   btnCopyText: { color: '#111' },
   copied: {

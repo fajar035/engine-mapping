@@ -48,6 +48,8 @@ const GROUPS: GuideGroup[] = [
       { label: 'Dead Time', unit: 'ms', desc: 'Jeda antara injector diperintah nyala sampai bensin benar-benar keluar (reaksi mekanik).' },
       { label: 'Diameter TB', unit: 'mm', desc: 'Ukuran lubang body kolter tempat udara masuk. Makin besar makin banyak udara bisa lewat.' },
       { label: 'VE Maks', unit: 'x', desc: 'Efisiensi pengisian silinder (1.00 = penuh 100%). Standar ~0.90–0.95, mesin sudah "napas" luwes bisa 1.00+.' },
+      { label: 'Ketinggian', unit: 'm', desc: 'Ketinggian lokasi di atas permukaan laut. Udara makin tinggi makin tipis (lebih sedikit oksigen) → map jadi lebih kurus karena model mengoreksi densitas.' },
+      { label: 'Suhu Intake', unit: '°C', desc: 'Suhu udara yang masuk mesin (udara luar sekitar). Udara panas lebih encer → model mengoreksi densitas otomatis.' },
     ],
   },
   {
@@ -66,13 +68,14 @@ const GROUPS: GuideGroup[] = [
       { label: 'Oktan', unit: 'RON', desc: 'Angka oktan bensin yang dipakai (92 / 95 / 98). Dipakai untuk memilih timing api yang aman.' },
       { label: 'Efisiensi Termal', unit: '', desc: 'Seberapa efisien mesin mengubah energi bensin jadi tenaga. Mesin 4-tak racy ~0.30.' },
       { label: 'Offset Fase Injeksi', unit: '°', desc: 'Geseran acuan sudut Injector Timing bila hasil terasa bergeser dari referensi ECU. Untuk penyesuaian halus.' },
+      { label: 'Offset Bacaan Ignition', unit: '°', desc: 'Penyesuaian nilai ignition agar nyambung dengan cara baca di device JUKEN-mu. Manual JUKEN memakai acuan +9° ketika membandingkan tabel.' },
     ],
   },
   {
     title: 'Grid Mapping',
     note: 'Membentuk kerangka tabel: dari RPM berapa mulai, sampai batasnya, dan selisih antar baris.',
     items: [
-      { label: 'Idle RPM', unit: 'rpm', desc: 'Putaran stasioner (diam) — titik awal baris tabel.' },
+      { label: 'Idle RPM', unit: 'rpm', desc: 'Putaran idle mesin-mu (referensi, mis. 1600). Tabel selalu mulai 1000 sesuai format JUKEN — nilai ini tidak menggeser kolom grid.' },
       { label: 'Max RPM', unit: 'rpm', desc: 'Tinggi kolom tabel (format JUKEN mentok 16000 — sebaiknya jangan diubah, biar bentuk tabel cocok dengan JUKEN).' },
       { label: 'Limiter RPM', unit: 'rpm', desc: 'Batas putaran nyata dari ECU (limiter). Zona "WOT rpm tinggi" pada AFR dan titik power peak mengikuti angka ini, bukan Max RPM. 0 = ikut Max RPM.' },
       { label: 'Step RPM', unit: 'rpm', desc: 'Selisih antar baris RPM (mis. 250).' },
@@ -82,11 +85,22 @@ const GROUPS: GuideGroup[] = [
     title: 'Target AFR',
     note: 'AFR = perbandingan udara : bensin yang dibakar. Angka kecil = campuran "kaya" (bensin banyak), angka besar = "miskin" (irit, tapi rawan panas).',
     items: [
-      { label: 'AFR Idle', unit: ':1', desc: 'Kondisi diam / stasioner. Acuan 4-tak: 13.8–14.7.' },
-      { label: 'AFR Cruising', unit: ':1', desc: 'Jalan santai, putaran stabil. Acuan: 14.0–14.7.' },
+      { label: 'AFR Idle', unit: ':1', desc: 'Kondisi diam / stasioner. Acuan untuk cam besar/CR tinggi: 13.5–13.8.' },
+      { label: 'AFR Cruising', unit: ':1', desc: 'Jalan santai, putaran stabil. Acuan untuk CR tinggi: 13.5–13.8.' },
       { label: 'AFR Akselerasi', unit: ':1', desc: 'Bukaan gas menengah / ngebut. Acuan: 13.0–13.5.' },
       { label: 'AFR WOT', unit: ':1', desc: 'Gas penuh, beban tinggi. Acuan: 12.5–13.0.' },
       { label: 'AFR WOT + RPM tinggi', unit: ':1', desc: 'Gas penuh pada putaran sangat tinggi (proteksi komponen). Acuan: 12.5–12.8.' },
+    ],
+  },
+  {
+    title: 'Kalibrasi AFR (tab Kalibrasi)',
+    note: 'Cara paling efektif bikin mapping "pas" dengan motor-mu: pakai AFR meter / dyno, masukkan angka terukur, biarkan app menghitung koreksinya.',
+    items: [
+      { label: 'Tujuan', unit: '', desc: 'App menghitung Base Map berdasar target AFR dari spek. Kalau mesinmu ternyata lebih kurus/kaya dari target (dibaca AFR meter), koreksi dibuat di tab Kalibrasi.' },
+      { label: 'Cara isi', unit: '', desc: 'Ketuk sel TPS×RPM yang mau dikalibrasi → isi AFR angka yang terbaca saat kondisi itu (mis. 13.8 saat gas penuh 8000 rpm). Ketuk label TPS untuk salin baris.' },
+      { label: 'Apa yang dihitung', unit: '', desc: 'Koreksi fuel % = (AFR terukur / AFR target − 1) × 100. Kalau terukur 13.8 tapi target 12.6 → +9.5% bensin ditambah (AFR kurus).' },
+      { label: 'Tombol "Terapkan ke Fuel"', unit: '', desc: 'Menulis hasil koreksi % ke tabel Fuel Correction untuk sel yang terukur saja. Sel lain tidak ikut berubah. Hasilnya bisa di-tune manual di tab Fuel Corr.' },
+      { label: 'Undo', unit: '', desc: 'Setiap edit (Fuel, Base, Ignition, Inj. Timing, Kalibrasi) bisa dibatalkan dengan tombol Undo (riwayat 30 langkah terakhir).' },
     ],
   },
 ];

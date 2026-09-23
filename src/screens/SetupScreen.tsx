@@ -10,7 +10,13 @@ import {
 import NumField from "../components/NumField";
 import Section from "../components/Section";
 import StatCard from "../components/StatCard";
-import { computeStats, horsepowerAt, redlineRPM } from "../engine";
+import {
+  airDensityGL,
+  computeStats,
+  horsepowerAt,
+  redlineRPM,
+  validateSpec
+} from "../engine";
 import { useEngine } from "../engineState";
 import { Colors, FontSize, Spacing } from "../theme";
 import type { SetupKey } from "../types";
@@ -94,6 +100,12 @@ export default function SetupScreen() {
           sub={`CR ${spec.compressionRatio}:1`}
         />
         <StatCard
+          label="Densitas Udara"
+          value={`${airDensityGL(spec)} g/L`}
+          sub={`@${spec.airTempC || 20}°C, ${spec.altitudeM || 0}m dpl`}
+          tone="ok"
+        />
+        <StatCard
           label="Torsi Puncak"
           value={`${stats.torquePeakRPM.toLocaleString("id-ID")} rpm`}
           sub={`~${hpAtTorque.toFixed(1)} HP di sini`}
@@ -120,10 +132,10 @@ export default function SetupScreen() {
           tone={stats.injRequiredPer > spec.injectorFlowCC ? "danger" : "ok"}
         />
         <StatCard
-          label="Duty Cycle"
-          value={`${(stats.dutyAtPeak * 100).toFixed(0)}%`}
-          sub={stats.dutyAtPeak > 0.85 ? "Terlalu tinggi @ max" : "Aman @ max"}
-          tone={stats.dutyAtPeak > 0.85 ? "warn" : "default"}
+          label="Duty Cycle Injector"
+          value={`${(stats.dutyAtLimiter * 100).toFixed(0)}%`}
+          sub={`peak ${(stats.dutyAtPeak * 100).toFixed(0)}% · limiter ${redlineRPM(spec).toLocaleString("id-ID")} rpm`}
+          tone={stats.dutyAtLimiter > 0.85 ? "warn" : "default"}
         />
         <StatCard
           label="TB vs Bore"
@@ -151,6 +163,36 @@ export default function SetupScreen() {
           value={`${stats.headerVsBore}%`}
           sub={`P1 ${spec.exhaustP1MM}mm / bore ${stats.boreRealMM}mm`}
         />
+      </Section>
+
+      <Section title="Cek Kesehatan Spek">
+        {validateSpec(spec, stats).map((it, i) => (
+          <View
+            key={i}
+            style={[
+              styles.warnRow,
+              it.severity === "danger"
+                ? styles.warnDanger
+                : it.severity === "warn"
+                  ? styles.warnWarn
+                  : styles.warnOk
+            ]}
+          >
+            <Text
+              style={[
+                styles.warnIcon,
+                it.severity === "danger"
+                  ? { color: Colors.danger }
+                  : it.severity === "warn"
+                    ? { color: Colors.warn }
+                    : { color: Colors.ok }
+              ]}
+            >
+              {it.severity === "danger" ? "⚠" : it.severity === "warn" ? "!" : "✓"}
+            </Text>
+            <Text style={styles.warnText}>{it.msg}</Text>
+          </View>
+        ))}
       </Section>
 
       <Section title="Noken As & Klep">
@@ -325,6 +367,26 @@ export default function SetupScreen() {
           hint="1.00 = 100%"
           onChange={(v) => updateSpec({ veMax: v })}
         />
+        <NumField
+          label="Ketinggian"
+          value={spec.altitudeM}
+          unit="m"
+          step={10}
+          min={0}
+          max={4000}
+          hint="dpl; koreksi densitas udara (BAROMETRIC)"
+          onChange={(v) => updateSpec({ altitudeM: v })}
+        />
+        <NumField
+          label="Suhu Intake"
+          value={spec.airTempC}
+          unit="°C"
+          step={1}
+          min={0}
+          max={60}
+          hint="suhu udara hisap; makin panas makin encer udara"
+          onChange={(v) => updateSpec({ airTempC: v })}
+        />
       </Section>
 
       <Section title="Klep & Knalpot">
@@ -406,6 +468,16 @@ export default function SetupScreen() {
           hint="Geser EOI terhadap bukaan klep"
           onChange={(v) => updateSpec({ injPhaseOffset: v })}
         />
+        <NumField
+          label="Offset Bacaan Ignition"
+          value={spec.ignBaseOffset}
+          unit="°"
+          step={1}
+          min={-30}
+          max={30}
+          hint="Manual JUKEN bacaan +9°; set sesuai cara baca di device-mu"
+          onChange={(v) => updateSpec({ ignBaseOffset: v })}
+        />
       </Section>
 
       <Section title="Grid Mapping">
@@ -416,6 +488,7 @@ export default function SetupScreen() {
           step={100}
           min={500}
           max={4000}
+          hint="Idle asli mesin (referensi). Tabel tetap mulai 1000 sesuai format JUKEN"
           onChange={(v) => updateSpec({ idleRPM: v })}
         />
         <NumField
@@ -461,7 +534,7 @@ export default function SetupScreen() {
           step={0.1}
           min={10}
           max={17}
-          hint="acuan 13.8–14.7"
+          hint="acuan 13.5–13.8"
           onChange={(v) => updateSpec({ afrIdle: v })}
         />
         <NumField
@@ -471,7 +544,7 @@ export default function SetupScreen() {
           step={0.1}
           min={10}
           max={17}
-          hint="acuan 14.0–14.7"
+          hint="acuan 13.5–13.8"
           onChange={(v) => updateSpec({ afrCruise: v })}
         />
         <NumField
@@ -594,5 +667,27 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     lineHeight: 16,
     marginBottom: Spacing.sm
-  }
+  },
+  warnRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: Spacing.md,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: Spacing.sm
+  },
+  warnDanger: {
+    backgroundColor: "rgba(231, 76, 60, 0.12)",
+    borderColor: "rgba(231, 76, 60, 0.45)"
+  },
+  warnWarn: {
+    backgroundColor: "rgba(241, 196, 15, 0.10)",
+    borderColor: "rgba(241, 196, 15, 0.4)"
+  },
+  warnOk: {
+    backgroundColor: "rgba(46, 204, 113, 0.10)",
+    borderColor: "rgba(46, 204, 113, 0.4)"
+  },
+  warnIcon: { fontSize: FontSize.md, fontWeight: "800", marginRight: Spacing.sm },
+  warnText: { color: Colors.text, fontSize: FontSize.xs, flex: 1, lineHeight: 16 }
 });

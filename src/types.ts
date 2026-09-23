@@ -35,6 +35,8 @@ export interface EngineSpec {
   // Pasokan udara
   throttleBodyMM: number;
   veMax: number;
+  altitudeM: number; // ketinggian lokasi (m) utk koreksi densitas udara
+  airTempC: number; // suhu udara intake/lingkungan (°C)
 
   // Klep
   valveIntakeMM: number;
@@ -49,6 +51,7 @@ export interface EngineSpec {
   octane: number;
   thermalEff: number;
   injPhaseOffset: number;
+  ignBaseOffset: number; // offset bacaan ignition thd acuan JUKEN (manual JUKEN: +9°)
 
   // Target AFR per kondisi (diisi user; 0 = kosong)
   afrIdle: number; // idle
@@ -91,6 +94,7 @@ export interface EngineStats {
   injRequiredPer: number;
   injInstalledCC: number;
   dutyAtPeak: number;
+  dutyAtLimiter: number;
   tbsqToBoreRatio: number;
   valveInRatio: number;
   valveExRatio: number;

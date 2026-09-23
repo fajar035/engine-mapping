@@ -9,7 +9,8 @@ import { TPS_STEPS } from '../types';
 import { useCopy } from '../useCopy';
 
 export default function FuelScreen() {
-  const { rpms, baseMap, fuelCorr, setFuel, resetFuel } = useEngine();
+  const { rpms, baseMap, fuelCorr, setFuel, resetFuel, undo, canUndo, undoDepth } =
+    useEngine();
   const [edit, setEdit] = useState<{ r: number; c: number } | null>(null);
   const { copiedTps, copiedAll, copy, copyAllMap } = useCopy(rpms);
 
@@ -49,6 +50,15 @@ export default function FuelScreen() {
         <View style={styles.btnRow}>
           <Pressable style={styles.resetBtn} onPress={resetFuel}>
             <Text style={styles.resetText}>Reset ke 0%</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.resetBtn, !canUndo && styles.btnDisabled]}
+            disabled={!canUndo}
+            onPress={undo}
+          >
+            <Text style={[styles.resetText, !canUndo && styles.btnDisabledText]}>
+              Undo{undoDepth > 0 ? ` (${undoDepth})` : ''}
+            </Text>
           </Pressable>
           <Pressable style={[styles.resetBtn, styles.btnCopy]} onPress={grid.onCopyAll}>
             <Text style={[styles.resetText, styles.btnCopyText]}>Salin Semua</Text>
@@ -117,6 +127,8 @@ const styles = StyleSheet.create({
   },
   resetText: { color: Colors.accent, fontSize: FontSize.sm, fontWeight: '700' },
   btnRow: { flexDirection: 'row', gap: Spacing.sm },
+  btnDisabled: { opacity: 0.4 },
+  btnDisabledText: { color: Colors.textDim },
   btnCopy: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   btnCopyText: { color: '#111' },
   copied: {

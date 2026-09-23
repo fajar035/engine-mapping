@@ -49,7 +49,22 @@ Semua angka dihitung otomatis dari spek (noken, seher, injector, throttle body, 
 - Baseline: injeksi berakhir saat klep intake mulai buka (IVO). Durasi (derajat) diambil dari Base Map kolom yang sama (`derajat = ms × rpm × 0.006`).
 - Sesuai karakter JUKEN: RPM makin tinggi nilainya menuju **0** (debit lebih besar).
 
-### 7. Salin ke JUKEN 5++
+### 7. Kalibrasi AFR (dari AFR meter) — *tab baru*
+- Isi **AFR yang terukur** (AFR meter / dyno) pada sel TPS×RPM yang dipelajari; sel kosong (·) menampilkan target AFR dari spek.
+- Setiap sel dengan data menghitung **koreksi fuel %** = `(AFR terukur ÷ AFR target − 1) × 100` — kurus (+) / kaya (−).
+- Tombol **«Terapkan ke Fuel»** menulis koreksi itu langsung ke tabel Fuel Correction (hanya sel terukur, bukan tambah).
+- Warna sel & outline menandakan koreksi terhitung vs Fuel Corr saat ini; tombol **Undo** membatalkan edit.
+- Ini cara paling efektif membuat mapping *pas* dengan motor nyata — bukan hanya tebakan spek.
+
+### 8. Guardrail Cek Kesehatan & Undo
+- **Cek Kesehatan Spek** di tab Setup: app mengecek kecepatan piston vs batas aman (22/25 m/s), duty cycle injector (>85%), kebutuhan flow injector, rasio TB & klep vs bore, overlap noken, kompresi vs oktan, limiter vs tinggi tabel, power estimasi vs flow ceiling — dengan saran perbaikan berwarna (danger/warn/ok).
+- **Undo 30 langkah** di semua layar edit (Base Map, Fuel, Ignition, Inj. Timing, Kalibrasi) — mencakup edit sel, generate, reset, dan terapan kalibrasi.
+
+### 9. Koreksi Kondisi Lingkungan
+- **Ketinggian (m)** & **suhu intake (°C)** di tab Setup: densitas udara dihitung dengan barometric formula ISO 2533 dan dipakai di model airflow (udara tipis = kalibrasi lebih kurus, dan sebaliknya). Default 20°C / 1 atm = 1.184 g/L agar kompatibel dengan nilai lama.
+- **Offset Bacaan Ignition (°)** di tab Setup: penyesuaian bacaan nilai ignition vs device JUKEN (manual JUKEN memakai acuan +9°).
+
+### 10. Salin ke JUKEN 5++
 - **Ketuk label TPS di sisi kiri tabel** → baris TPS itu disalin ke clipboard dalam format `RPM <tab> nilai` per baris (mudah diisi ke app JUKEN: "TPS 70% [IT]: 1000 RPM 188, …").
 - **Tombol "Salin Semua"** → seluruh tabel disalin sebagai TSV (baris atas = RPM, kolom pertama = TPS) — tinggal tempel di spreadsheet/laptop.
 - Berlaku di keempat peta. Data tersimpan otomatis (AsyncStorage), mode gelap, offline.
@@ -93,6 +108,8 @@ Otomatis dihitung dari spek yang diisi — lihat daftar nilai di bawah tiap inpu
 | **Dead Time** | ms | Selisih waktu antara injektor "diperintah nyala" sampai bensin benar-benar keluar. |
 | **Diameter TB** | mm | Diameter lubang throttle body (body kolter) — pintu masuk udara. |
 | **VE Maks** | x | Efisiensi pengisian silinder maksimum (1.00 = 100%, mesin standar ~0.85–0.95, balap >1). |
+| **Ketinggian** | m | Ketinggian lokasi di atas permukaan laut — mengoreksi densitas udara (makin tinggi = makin tipis). |
+| **Suhu Intake** | °C | Suhu udara yang masuk mesin — udara panas lebih encer, map jadi lebih kurus. |
 
 ### Klep & Knalpot
 | Input | Satuan | Artinya |
@@ -109,12 +126,14 @@ Otomatis dihitung dari spek yang diisi — lihat daftar nilai di bawah tiap inpu
 | **Oktan** | RON | Angka oktan bahan bakar yang dipakai (92/95/98). |
 | **Efisiensi Termal** | (0–1) | Seberapa efisien mesin mengubah bahan bakar jadi tenaga (~0.30 utk mesin 4-tak racy). |
 | **Offset Fase Injeksi** | ° | Geser acuan sudut Injector Timing bila hasil berasa bergeser dari referensi ECU. |
+| **Offset Bacaan Ignition** | ° | Penyesuaian nilai ignition agar nyambung dengan cara baca di device JUKEN (manual JUKEN: +9°). |
 
 ### Grid Mapping
 | Input | Satuan | Artinya |
 |---|---|---|
 | **Idle RPM** | rpm | Putaran idle (stasioner) — titik awal baris tabel. |
-| **Max RPM** | rpm | Batas putaran maksimum — baris terakhir tabel. |
+| **Max RPM** | rpm | Tinggi kolom tabel (format JUKEN mentok 16000). |
+| **Limiter RPM** | rpm | Batas putaran nyata ECU (0 = ikut Max RPM). Zona AFR WOT tinggi & power peak mengikuti ini. |
 | **Step RPM** | rpm | Selisih antar baris RPM (mis. 250). |
 
 ### Target AFR (per kondisi)
@@ -154,10 +173,10 @@ AFR = perbandingan udara : bensin yang terbakar (air fuel ratio). Semakin kecil 
 ├── index.ts                    # Register app
 └── src/
     ├── engine.ts               # Kalkulasi (cc, cam, VE, airflow, injector, ignition, base map)
-    ├── engineState.tsx         # Context + persistensi AsyncStorage (storage key v3)
+    ├── engineState.tsx         # Context + persistensi AsyncStorage (storage key v4, migrasi TPS 95)
     ├── heat.ts                 # Skala warna panas untuk sel grid
     ├── theme.ts                # Warna & spacing
-    ├── types.ts                # Tipe data + konstanta grid JUKEN (JUKEN_TPS, step 250)
+    ├── types.ts                # Tipe data + konstanta grid JUKEN (JUKEN_TPS 21 baris, step 250)
     ├── copy.ts                 # Format & salin kolom ke clipboard
     ├── useCopy.ts              # Hook useCopy (status "Terkopi")
     ├── components/
@@ -167,11 +186,13 @@ AFR = perbandingan udara : bensin yang terbakar (air fuel ratio). Semakin kecil 
     │   ├── Section.tsx         # Kartu section form
     │   └── StatCard.tsx        # Kartu hasil perhitungan
     └── screens/
-        ├── SetupScreen.tsx     # Input spek + analisa mesin
+        ├── SetupScreen.tsx     # Input spek + analisa mesin + cek kesehatan spek
         ├── BaseMapScreen.tsx   # Base Map (ms)
         ├── FuelScreen.tsx      # Fuel Correction (%)
         ├── IgnitionScreen.tsx  # Ignition Timing (°BTDC)
-        └── InjectorScreen.tsx  # Injector Timing (°)
+        ├── InjectorScreen.tsx  # Injector Timing (°)
+        ├── CalibrationScreen.tsx # Kalibrasi AFR terukur → koreksi fuel
+        └── GuideScreen.tsx     # Panduan input
 ```
 
 ---
@@ -214,21 +235,25 @@ Semua hasil adalah **estimasi berbasis spek**, bukan angka absolut / dyno.
 
 - **Kapasitas mesin**: `(π/4) × bore² × stroke × jumlah silinder`.
 - **Event klep** (derajat crank): `durasi intake = IVO + 180 + IVC`, exhaust serupa, `overlap = IVO + EVC`.
+- **Densitas udara** (g/L): barometric formula ISO 2533 dari suhu & ketinggian, dinormalisasi ke referensi 1.184 g/L (20°C, 1 atm).
 - **Base Map (ms)**: fuel = airflow/VE ÷ AFR target per TPS, dibagi per siklus & injector → PW (`PW = fuel/siklus ÷ flow injection + dead time`).
 - **Flow injector**: cc/min rating (pada 3.0 bar) dikoreksi tekanan: `flow aktual ≈ rating × √(tekanan/3)`.
 - **Konversi derajat injeksi**: `derajat = ms × rpm × 0.006`.
 - **Injector Timing**: `IT = (360 − EOI°BTDC) − durasiDerajat` (kerangka 0 = TMA ignisi); tumbuh mendekati 0 di RPM tinggi.
 - **Flow ceiling klep**: `π × D_klep × lift` (curtain), power dijepit ke `curtain × 0.0263 HP/mm²`.
 - **Pergeseran power band (knalpot)**: header P1 > ~0.58×bore menaikkan torsi puncak; outlet > P1 menambah efek top-end.
-- **Ignition baseline**: kurva RPM + koreksi kompresi, oktan, overlap.
+- **Ignition baseline**: kurva RPM + koreksi kompresi, oktan, overlap + `ignBaseOffset` (acuan bacaan device).
+- **Kalibrasi AFR**: `koreksi fuel % = (AFR terukur ÷ AFR target − 1) × 100`, diterapkan langsung sebagai nilai Fuel Correction per sel terukur.
+- **Guardrail**: batas aman kecepatan piston (22 / 25 m/s), duty cycle injector (>85%), rasio TB (35–75% bore), klep IN (40–65% bore), overlap noken, CR vs oktan, limiter vs tabel, power vs flow ceiling klep.
 
 ---
 
 ## Catatan Kalibrasi
 
 - Tabel di sini adalah **titik awal**. Final kalibrasi tetap dari dyno / AFR meter.
-- Saat menyalin ke JUKEN, sesuaikan angka dengan reaksi mesin; jika nilai Injector Timing terasa bergeser dari referensi ECU, geser `injPhaseOffset` di tab Setup lalu "Reset ke Baseline".
-- Gunakan area yang aman untuk uji coba.
+- Cara terbaik: ukur AFR nyata (AFR meter) lalu isi di **tab Kalibrasi** → app menghitung koreksi % dan menuliskannya ke Fuel Correction. Setelah terapkan, bisa fine-tune manual di Fuel Corr.
+- Saat menyalin ke JUKEN, sesuaikan angka dengan reaksi mesin; jika nilai Injector Timing terasa bergeser dari referensi ECU, geser `injPhaseOffset` di tab Setup lalu "Reset ke Baseline". Nilai ignition yang dirasa bergeser bisa disetel lewat `ignBaseOffset` (acuan manual JUKEN +9°).
+- Cek **Cek Kesehatan Spek** di tab Setup untuk memastikan spek aman (piston speed, duty injector, dll). Gunakan area yang aman untuk uji coba.
 
 ---
 
