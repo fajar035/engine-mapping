@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Engine Mapping",
+    "slug": "engine-mapping",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon/android/playstore-icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0c0f14",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rigging.enginemapping"
+    },
+    "android": {
+      "package": "com.rigging.enginemapping",
+      "adaptiveIcon": {
+        "backgroundColor": "#0c0f14",
+        "foregroundImage": "./assets/icon/android/playstore-icon.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/icon/android/playstore-icon.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0c0f14",
+          "dark": {
+            "backgroundColor": "#0c0f14"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "294299dc-38a3-4bcb-8ae6-2e98d9e6aba2"
+      }
+    }
+  }
+}
