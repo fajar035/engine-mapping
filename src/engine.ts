@@ -85,7 +85,7 @@ export function defaultSpec(): EngineSpec {
     octane: 98,
     thermalEff: 0.3,
     injPhaseOffset: 0,
-    ignBaseOffset: 9, // acuan pembacaan JUKEN (manual: +9°), afs di kalibrasi
+    ignBaseOffset: 0, // koreksi cara-baca device (default netral 0°)
 
     // Target AFR per kondisi (default setup Motor Gw — bore-up/drag, CR 12.8, oktan 98:
     // sedikit lebih kaya dari standard tune biar aman dari detonasi/hot, idle lebih kaya
@@ -137,7 +137,7 @@ export function emptySpec(): EngineSpec {
     octane: 0,
     thermalEff: 0.3, // opsional (estimasi HP)
     injPhaseOffset: 0,
-    ignBaseOffset: 9, // acuan JUKEN +9° (bawaan)
+    ignBaseOffset: 0, // koreksi cara-baca device (default netral 0°)
     afrIdle: 0,
     afrCruise: 0,
     afrAccel: 0,
@@ -416,21 +416,45 @@ export function computeStats(s: EngineSpec): EngineStats {
 
 // --- Base mapa (dihitung dari spek) ---
 
-// Fuel: baseline = 100% koreksi. Nilai % terhadap PW dasar dari airflow.
+// Ignition (BTDC°).
+// Filosofi KESELAMATAN: ignite terlalu maju = detonasi → ring/piston jebol. Maka:
+//  - Kurva naik dari idle ke puncak lalu TURUN di high-rev (bukan naik terus).
+//  - WOT (beban penuh) dipull-back lebih belakang daripada beban ringan.
+//  - CR tinggi memangkas advance (margin detonasi).
+//  - Plafon keras tergantung CR (tidak pernah lebih maju dari itu).
+//  Hasilnya cenderung AMAN (lebih belakang) — belum optimal, tapi tidak merusak.
 export function baseIgnitionDeg(
   s: EngineSpec,
   rpm: number,
   tpsPct: number,
 ): number {
-  let adv = 8 + rpm * 0.0042;
-  adv = clamp(adv, 4, 33);
-  adv += (s.compressionRatio - 11) * -0.7;
-  adv += (s.octane - 92) * 0.06;
-  adv += (camEvents(s).overlap - 40) * -0.04;
-  const loadCorr = (1 - tpsPct / 100) * 4;
-  // Offset bacaan thd acuan pembacaan JUKEN (mis. manual JUKEN: +9°). Ganti ketika
-  // membandingkan hasil dengan angka yang terbaca di app/JUKEN.
-  return round1(clamp(adv + loadCorr + (s.ignBaseOffset || 0), 0, 60));
+  const peak = torquePeakRPM(s);
+  const top = redlineRPM(s);
+  const fr = clamp((rpm - 1000) / Math.max(peak - 1000, 1), 0, 1);
+  const fv = clamp((rpm - peak) / Math.max(top - peak, 1), 0, 1);
+
+  // 12° idle → 26° di torsi puncak → 20° saat mendekati limiter
+  const rpmAdv = fr < 1 ? 12 + 14 * fr : 26 - 6 * fv;
+
+  // Beban: low-load (coast/ringan) boleh maju, WOT mundur (detonasi)
+  const loadCorr = (1 - tpsPct / 100) * 6 - 2;
+
+  // CR: >11 → advance dipangkas (detonasi naik cepat dengan CR)
+  const crCorr = (11 - s.compressionRatio) * 0.9;
+
+  // Oktan: hanya menambah sedikit bila sangat tinggi
+  const octCorr = (s.octane - 95) * 0.03;
+
+  // Overlap besar (reversion) → mundur sedikit
+  const ovCorr = (40 - camEvents(s).overlap) * 0.03;
+
+  // Plafon detonasi: semakin tinggi CR, semakin belakang batas max advance
+  const ceiling =
+    s.compressionRatio >= 13.5 ? 30 : s.compressionRatio >= 12 ? 32 : 34;
+
+  const adv =
+    rpmAdv + loadCorr + crCorr + octCorr + ovCorr + (s.ignBaseOffset || 0);
+  return round1(clamp(adv, 4, ceiling));
 }
 
 // EOI dasar (End of Injection) dalam °BTDC: injeksi berakhir saat klep intake mulai buka
@@ -482,17 +506,17 @@ export function validateSpec(s: EngineSpec, stats: EngineStats): SpecWarning[] {
     push('warn', `Injector terpasang ${st.injInstalledCC} cc/min < butuh ${st.injRequiredPer} cc/min — kurangi aliran atau ganti injector lebih besar.`);
   }
 
-  // 3. Rasio TB vs bore
-  const tbRatio = st.tbsqToBoreRatio / 100;
+  // 3. Rasio TB vs bore (persen)
+  const tbRatio = st.tbsqToBoreRatio;
   if (br > 0) {
-    if (tbRatio < 0.35) push('warn', `Throttle body ${s.throttleBodyMM} mm = ${st.tbsqToBoreRatio}% bore — sempit utk rpm tinggi, power band jadi bawah.`);
-    if (tbRatio > 0.75 && s.veMax >= 1) push('warn', `TB ${s.throttleBodyMM} mm = ${st.tbsqToBoreRatio}% bore — terlalu besar utk VE 1.0, low-end kehilangan respons.`);
+    if (tbRatio < 35) push('warn', `Throttle body ${s.throttleBodyMM} mm = ${st.tbsqToBoreRatio}% bore — sempit utk rpm tinggi, power band jadi bawah.`);
+    if (tbRatio > 75 && s.veMax >= 1) push('warn', `TB ${s.throttleBodyMM} mm = ${st.tbsqToBoreRatio}% bore — terlalu besar utk VE 1.0, low-end kehilangan respons.`);
   }
 
   // 4. Klep vs bore
   if (br > 0) {
-    if (st.valveInRatio < 0.4) push('warn', `Klep intake ${s.valveIntakeMM} mm = ${st.valveInRatio}% bore — kecil, batasi aliran high-rpm.`);
-    if (st.valveInRatio > 0.65) push('warn', `Klep intake ${s.valveIntakeMM} mm = ${st.valveInRatio}% bore — besar, perlu valvetrain kokoh & piston relief.`);
+    if (st.valveInRatio < 40) push('warn', `Klep intake ${s.valveIntakeMM} mm = ${st.valveInRatio}% bore — kecil, batasi aliran high-rpm.`);
+    if (st.valveInRatio > 65) push('warn', `Klep intake ${s.valveIntakeMM} mm = ${st.valveInRatio}% bore — besar, perlu valvetrain kokoh & piston relief.`);
   }
 
   // 5. Overlap noken
