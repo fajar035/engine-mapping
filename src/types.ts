@@ -1,8 +1,10 @@
-// Format tabel JUKEN 5++: TPS dalam %, resolusi 5% dimulai 0-2-5-10..., RPM mulai 1000 step 250
+// Format tabel JUKEN 5++: TPS dalam %, resolusi 5% dimulai 0-2-5-10..., RPM mulai 1000 step 250.
+// CATATAN: JUKEN 5++ batas atas TPS 90% lalu langsung 100% — TPS 95% TIDAK ada di app JUKEN.
+// Kalau grid ini menyertakan 95%, nilai baris 90–100 bergeser 1 tingkat saat di-paste ke JUKEN.
 export const JUKEN_RPM_START = 1000;
 export const JUKEN_RPM_STEP = 250;
 export const JUKEN_TPS = [
-  0, 2, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+  0, 2, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 100,
 ] as const;
 export const TPS_STEPS = JUKEN_TPS;
 

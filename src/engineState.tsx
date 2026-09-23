@@ -19,6 +19,13 @@ import { TPS_STEPS } from './types';
 
 const STORAGE_KEY = 'mapping-state-v4';
 
+// Versi lama grid TPS menyertakan 95% yang ternyata TIDAK ada di JUKEN 5++.
+// Untuk migrasi data lama (22 baris) ke grid baru (21 baris), baris dipetakan
+// berdasarkan nilai TPS agar tidak bergeser satu tingkat saat di-paste ke JUKEN.
+const LEGACY_TPS: readonly number[] = [
+  0, 2, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+];
+
 interface MapState {
   baseMap: Map2D; // ms, format JUKEN Base Map
   fuelCorr: Map2D; // %, format JUKEN Fuel Correction
@@ -91,16 +98,20 @@ function sanitizeProfile(
 ): ProfileState {
   const spec = { ...defaultFactory(), ...(raw?.spec ?? {}) };
   const grid = makeGrid(spec);
-  return alignToSpec(
-    {
-      spec,
-      baseMap: raw?.baseMap?.length ? raw.baseMap : grid.baseMap,
-      fuelCorr: raw?.fuelCorr?.length ? raw.fuelCorr : grid.fuelCorr,
-      ignition: raw?.ignition?.length ? raw.ignition : grid.ignition,
-      injOffset: raw?.injOffset?.length ? raw.injOffset : grid.injOffset,
-    },
-    spec,
-  );
+  // Migrasi grid lama (22 TPS, termasuk 95) → 21 TPS: petakan baris berdasarkan
+  // nilai TPS, bukan posisi, supaya data TPS 100 tidak salah jadi TPS 95.
+  const migrate = (m: Map2D): Map2D => {
+    if (m.length !== LEGACY_TPS.length) return m;
+    return TPS_STEPS.map((t) => {
+      const i = LEGACY_TPS.indexOf(t);
+      return i >= 0 ? m[i] : undefined;
+    }).filter((r): r is number[] => !!r);
+  };
+  const baseMap = migrate(raw?.baseMap?.length ? raw.baseMap : grid.baseMap);
+  const fuelCorr = migrate(raw?.fuelCorr?.length ? raw.fuelCorr : grid.fuelCorr);
+  const ignition = migrate(raw?.ignition?.length ? raw.ignition : grid.ignition);
+  const injOffset = migrate(raw?.injOffset?.length ? raw.injOffset : grid.injOffset);
+  return alignToSpec({ spec, baseMap, fuelCorr, ignition, injOffset }, spec);
 }
 
 function sanitizeState(raw: Partial<AppState> | null): AppState {

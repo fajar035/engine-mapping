@@ -3,8 +3,8 @@
 Aplikasi mobile (React Native / Expo) untuk membuat **mapping Base Map, Fuel Correction, Ignition Timing, dan Injector Timing** berbasis spek motor — dengan format tabel yang **sama persis dengan aplikasi JUKEN 5 Plus Plus** (Play Store) sehingga nilai bisa langsung disalin dan diisi ke app JUKEN.
 
 Struktur tabel mengikuti aplikasi JUKEN 5 Plus Plus (desktop/programmer Android):
-- **Baris = TPS (%) di kiri**: 0, 2, 5, 10, 15, 20, 25, … 100.
-- **Kolom = RPM di atas**: mulai 1000, step 500, mentok **16000** (batas RPM bisa diubah user di tab Setup: Max RPM & Step RPM).
+- **Baris = TPS (%) di kiri**: 0, 2, 5, 10, 15, 20, 25, … 90, 100 (**21 baris — TPS 95% tidak ada di JUKEN 5++**).
+- **Kolom = RPM di atas**: mulai 1000, step 250, mentok **16000** (batas RPM bisa diubah user di tab Setup: Max RPM & Step RPM).
 - Empat peta yang ditiru: **Base Map (ms)**, **Fuel Correction (%)**, **Ignition Timing (°BTDC)**, **Injector Timing (°)**.
 
 Semua angka dihitung otomatis dari spek (noken, seher, injector, throttle body, dll), sehingga saat spek diganti baseline ikut menyesuaikan.
