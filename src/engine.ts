@@ -12,6 +12,7 @@ export const MAX_DUTY = 0.85;
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(Math.max(v, lo), hi);
 const round1 = (v: number) => Math.round(v * 10) / 10;
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const round2 = (v: number) => Math.round(v * 100) / 100;
 
 // Densitas udara (g/L) dari suhu intake & ketinggian — barometric formula ISO 2533.
@@ -417,44 +418,59 @@ export function computeStats(s: EngineSpec): EngineStats {
 // --- Base mapa (dihitung dari spek) ---
 
 // Ignition (BTDC°).
-// Filosofi KESELAMATAN: ignite terlalu maju = detonasi → ring/piston jebol. Maka:
-//  - Kurva naik dari idle ke puncak lalu TURUN di high-rev (bukan naik terus).
-//  - WOT (beban penuh) dipull-back lebih belakang daripada beban ringan.
-//  - CR tinggi memangkas advance (margin detonasi).
-//  - Plafon keras tergantung CR (tidak pernah lebih maju dari itu).
-//  Hasilnya cenderung AMAN (lebih belakang) — belum optimal, tapi tidak merusak.
+// Kalibrasi terhadap mappingan STOCK JUKEN (mis. Vario 125 LED New) yang TERBUKTI
+// jalan di spek CR12.8 + RON 98 — "galak" tapi aman saat diikuti speknya:
+//  - idle 15° sampai ~0.21×redline (semua beban, base ECU).
+//  - Beban ringan: naik cepat ke 39° (silinder tidak terbebani → aman maju).
+//  - TPS menengah: naik ke ~27°, tahan, lalu naik ke ~36° mendekati redline.
+//  - WOT: naik ke ~23°, tahan di band tengah (anti detonasi), naik ke 33° di top-end.
+//  - Taper -1° di atas redline.
+// Skala spek: nilai acuan = CR 12.8 / RON 98. CR & oktan di luar itu digeser
+// proporsional; plafon detonasi keras tergantung CR & beban (WOT paling ketat).
 export function baseIgnitionDeg(
   s: EngineSpec,
   rpm: number,
   tpsPct: number,
 ): number {
-  const peak = torquePeakRPM(s);
-  const top = redlineRPM(s);
-  const fr = clamp((rpm - 1000) / Math.max(peak - 1000, 1), 0, 1);
-  const fv = clamp((rpm - peak) / Math.max(top - peak, 1), 0, 1);
+  const red = Math.max(redlineRPM(s), 2000);
+  const load = clamp(tpsPct / 100, 0, 1); // 0 = ringan, 1 = WOT
+  const f = clamp(rpm / red, 0, 1.35); // fraksi redline
 
-  // 12° idle → 26° di torsi puncak → 20° saat mendekati limiter
-  const rpmAdv = fr < 1 ? 12 + 14 * fr : 26 - 6 * fv;
+  // Nilai acuan terkalibrasi ke stock JUKEN (CR 12.8, RON 98)
+  const idleAdv = 15;
+  const peak = 33 + 6 * (1 - load); // 33 (WOT)..39 (ringan), ala stock
+  const plateau = 23 + 16 * Math.pow(1 - load, 2); // 23 (WOT)..39 (ringan)
+  const f1e = 0.25 + 0.125 * (1 - load); // akhir ramp pertama
+  const fIdle = 0.21;
+  const fTopS = 0.67; // mulai top-end ramp
+  const fTopE = 0.8; // selesai → peak
 
-  // Beban: low-load (coast/ringan) boleh maju, WOT mundur (detonasi)
-  const loadCorr = (1 - tpsPct / 100) * 6 - 2;
+  let adv: number;
+  if (f <= fIdle) adv = idleAdv;
+  else if (f <= f1e)
+    adv = lerp(idleAdv, plateau, (f - fIdle) / (f1e - fIdle));
+  else if (f <= fTopS) adv = plateau;
+  else if (f <= fTopE)
+    adv = lerp(plateau, peak, (f - fTopS) / (fTopE - fTopS));
+  else adv = peak;
 
-  // CR: >11 → advance dipangkas (detonasi naik cepat dengan CR)
-  const crCorr = (11 - s.compressionRatio) * 0.9;
+  // Taper di atas redline (ECU bawaan: -1° setelah limiter)
+  if (f > 1) adv -= Math.min(1, (f - 1) * 4);
 
-  // Oktan: hanya menambah sedikit bila sangat tinggi
-  const octCorr = (s.octane - 95) * 0.03;
-
-  // Overlap besar (reversion) → mundur sedikit
+  // Koreksi spek — acuan CR 12.8 / RON 98 (yang terbukti di stock).
+  const crCorr = (12.8 - s.compressionRatio) * 0.3;
+  const octCorr = (s.octane - 98) * 0.15;
   const ovCorr = (40 - camEvents(s).overlap) * 0.03;
+  adv += crCorr + octCorr + ovCorr + (s.ignBaseOffset || 0);
 
-  // Plafon detonasi: semakin tinggi CR, semakin belakang batas max advance
-  const ceiling =
-    s.compressionRatio >= 13.5 ? 30 : s.compressionRatio >= 12 ? 32 : 34;
+  // Plafon detonasi: WOT paling ketat; beban ringan boleh lebih maju.
+  // CR jauh di atas acuan stock → dikunci mundur.
+  const wotCeil =
+    s.compressionRatio >= 13.7 ? 31 : s.compressionRatio >= 12.4 ? 34 : 36;
+  const lowOct = s.octane < 95 ? wotCeil - 2 : wotCeil;
+  const hardCeil = load >= 0.8 ? lowOct : Math.min(lowOct + 6, 40);
 
-  const adv =
-    rpmAdv + loadCorr + crCorr + octCorr + ovCorr + (s.ignBaseOffset || 0);
-  return round1(clamp(adv, 4, ceiling));
+  return round1(clamp(adv, 4, hardCeil));
 }
 
 // EOI dasar (End of Injection) dalam °BTDC: injeksi berakhir saat klep intake mulai buka
