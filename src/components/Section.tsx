@@ -30,12 +30,14 @@ const styles = StyleSheet.create({
   title: {
     color: Colors.text,
     fontSize: FontSize.md,
-    fontWeight: '700',
+    fontWeight: "700",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    flexShrink: 1,
+    flexWrap: "wrap"
   },
   body: {
     padding: Spacing.lg,

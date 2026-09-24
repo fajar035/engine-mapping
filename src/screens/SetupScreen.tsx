@@ -755,11 +755,15 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     flex: 1,
     flexShrink: 1,
+    flexWrap: "wrap",
     lineHeight: 16
   },
   hintLine: {
     color: Colors.textDim,
     fontSize: FontSize.xs,
-    lineHeight: 16
+    flexShrink: 1,
+    flexWrap: "wrap",
+    lineHeight: 16,
+    width: "100%"
   }
 });
