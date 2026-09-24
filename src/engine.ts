@@ -459,14 +459,18 @@ export function baseIgnitionDeg(
 
   // Koreksi spek — acuan CR 12.8 / RON 98 (yang terbukti di stock).
   const crCorr = (12.8 - s.compressionRatio) * 0.3;
-  const octCorr = (s.octane - 98) * 0.15;
+  const octCorr =
+    s.octane > 0
+      ? (s.octane - 98) * 0.15 + Math.min(0, s.octane - 95) * 0.2
+      : 0;
   const ovCorr = (40 - camEvents(s).overlap) * 0.03;
   adv += crCorr + octCorr + ovCorr + (s.ignBaseOffset || 0);
 
   // Plafon detonasi: WOT paling ketat; beban ringan boleh lebih maju.
-  // CR jauh di atas acuan stock → dikunci mundur.
-  const wotCeil =
-    s.compressionRatio >= 13.7 ? 31 : s.compressionRatio >= 12.4 ? 34 : 36;
+  // CR jauh di atas acuan stock → dikunci mundur. Oktan rendah → dikunci mundur ekstra.
+  const crLimit = s.compressionRatio >= 13.7 ? -3 : s.compressionRatio >= 12.4 ? 0 : 3;
+  const octLimit = s.octane > 0 && s.octane < 95 ? (s.octane - 95) * 0.5 : 0;
+  const wotCeil = 35 + crLimit + octLimit;
   const lowOct = s.octane < 95 ? wotCeil - 2 : wotCeil;
   const hardCeil = load >= 0.8 ? lowOct : Math.min(lowOct + 6, 40);
 
