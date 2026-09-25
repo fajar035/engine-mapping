@@ -59,10 +59,11 @@ export function defaultSpec(): EngineSpec {
     exhaustEVC: 27, // EX tutup °ATDC
 
     // Injector
-    // 143 cc/min = hasil kalibrasi silang dgn tabel Base Map JUKEN asli (WOT):
-    // dgn AFR target & VE puncak veMax, satu-satunya flow yang bikin tabel stok
-    // mentok tepat di VE ~1.0 adalah 140–145. Isi ke badan injector asli bila beda.
-    injectorFlowCC: 143,
+    // 200 cc/min = flow injektor yang terpasang di motor (aftermarket 10-hole),
+    // rating pada 3 bar — tekanan rail harus sama dengan `fuelPressureBar` di bawah.
+    // Catatan: back-calculate dari tabel Base Map stok JUKEN (referensi beda) cuma
+    // mentok di 140–145 cc/min; kalau ganti injector, ubah angka ini.
+    injectorFlowCC: 200,
     injectorCount: 1,
     fuelPressureBar: 3,
     injectorDeadTime: 0.65,
