@@ -1,11 +1,12 @@
 import React, { useCallback } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors, FontSize } from '../theme';
+import { Colors } from '../theme';
 
-const COL_W = 62;
-const ROW_H = 44;
-const HEADER_H = 34;
-const LABEL_W = 48;
+// Dibuat ringkas supaya lebih banyak kolom RPM muat layar tanpa geser banyak.
+const COL_W = 42;
+const ROW_H = 34;
+const HEADER_H = 26;
+const LABEL_W = 40;
 
 interface Props {
   /** Label baris (kiri), nilai TPS (%). */
@@ -126,14 +127,14 @@ const styles = StyleSheet.create({
   headerCell: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 2,
+    paddingHorizontal: 1,
     backgroundColor: Colors.tpsHeader,
   },
   cellBody: {
     width: COL_W,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 2,
+    paddingHorizontal: 1,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
@@ -146,9 +147,9 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   cellSel: { borderWidth: 2, borderColor: Colors.accent },
-  cellText: { color: Colors.text, fontSize: FontSize.xs, fontWeight: '700', textAlign: 'center' },
-  cornerText: { color: Colors.textDim, fontSize: 9, textAlign: 'center' },
-  rpmText: { fontSize: FontSize.xs },
-  tpsText: { color: Colors.textDim, fontSize: FontSize.sm, fontWeight: '700' },
-  cellSub: { color: Colors.textDim, fontSize: 9, marginTop: 2 },
+  cellText: { color: Colors.text, fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  cornerText: { color: Colors.textDim, fontSize: 8, textAlign: 'center' },
+  rpmText: { fontSize: 9 },
+  tpsText: { color: Colors.textDim, fontSize: 10, fontWeight: '700' },
+  cellSub: { color: Colors.textDim, fontSize: 8, marginTop: 1 },
 });

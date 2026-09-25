@@ -1,12 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
-import {
-  baseIgnitionDeg,
-  baseMapMs,
-  calibrationCorrPct,
-  defaultSpec,
-  emptySpec,
-  rpmGrid,
-} from './engine';
+import { baseIgnitionDeg, baseMapMs, defaultSpec, emptySpec, rpmGrid } from './engine';
 import type { EngineSpec, Map2D, SetupKey } from './types';
 import { TPS_STEPS } from './types';
 
@@ -22,7 +15,6 @@ interface MapState {
   fuelCorr: Map2D; // %, format JUKEN Fuel Correction
   ignition: Map2D; // °BTDC, format JUKEN Ignition Timing
   injOffset: Map2D; // offset EOI (°) thd baseline, utk tabel Injector Timing
-  afrMeasured: Map2D; // AFR terukur dari AFR meter (0 = kosong), utk Kalibrasi
 }
 
 interface ProfileState extends MapState {
@@ -37,15 +29,6 @@ interface AppState {
   };
 }
 
-// Riwayat undo untuk edit grid (per profil). Snapshot di-push SEBELUM setiap
-// mutasi grid (ref, tidak ikut tersimpan ke disk karena berulang 30× dan besar).
-interface HistEntry {
-  k: SetupKey;
-  maps: MapState;
-}
-
-const MAX_HISTORY = 30;
-
 interface EngineContextValue extends ProfileState {
   rpms: number[];
   loaded: boolean;
@@ -56,16 +39,10 @@ interface EngineContextValue extends ProfileState {
   setFuel: (r: number, c: number, v: number) => void;
   setIgnition: (r: number, c: number, v: number) => void;
   setInjOffset: (r: number, c: number, v: number) => void;
-  setAfrMeasured: (r: number, c: number, v: number) => void;
-  clearAfrMeasured: () => void;
-  applyCalibration: () => number; // terapkan koreksi AFR→ fuelCorr; kembalikan jml sel
   regenBaseMap: () => void;
   resetFuel: () => void;
   resetIgnition: () => void;
   resetInj: () => void;
-  undo: () => void;
-  canUndo: boolean;
-  undoDepth: number;
 }
 
 const EngineContext = createContext<EngineContextValue | null>(null);
@@ -96,7 +73,6 @@ function makeGrid(spec: EngineSpec): MapState {
     fuelCorr: empty(),
     ignition: fillIgnition(spec, empty()),
     injOffset: empty(),
-    afrMeasured: empty(),
   };
 }
 
@@ -119,13 +95,7 @@ function sanitizeProfile(
   const fuelCorr = migrate(raw?.fuelCorr?.length ? raw.fuelCorr : grid.fuelCorr);
   const ignition = migrate(raw?.ignition?.length ? raw.ignition : grid.ignition);
   const injOffset = migrate(raw?.injOffset?.length ? raw.injOffset : grid.injOffset);
-  const afrMeasured = migrate(
-    raw?.afrMeasured?.length ? raw.afrMeasured : grid.afrMeasured,
-  );
-  return alignToSpec(
-    { spec, baseMap, fuelCorr, ignition, injOffset, afrMeasured },
-    spec,
-  );
+  return alignToSpec({ spec, baseMap, fuelCorr, ignition, injOffset }, spec);
 }
 
 function sanitizeState(raw: Partial<AppState> | null): AppState {
@@ -151,47 +121,17 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
   // stabil dan layar/tab lain tidak ikut re-render saat sel diedit.
   const activeSpec = state?.profiles[state.active].spec;
   const rpms = useMemo(() => (activeSpec ? rpmGrid(activeSpec) : []), [activeSpec]);
-  const [history, setHistory] = useState<HistEntry[]>([]);
-  const snapshot = (p: ProfileState): MapState => ({
-    baseMap: p.baseMap,
-    fuelCorr: p.fuelCorr,
-    ignition: p.ignition,
-    injOffset: p.injOffset,
-    afrMeasured: p.afrMeasured,
-  });
 
   const value = useMemo<EngineContextValue | null>(() => {
     if (!state) return null;
     const profile = state.profiles[state.active];
 
-    // push snapshot SEBELUM mutasi (dipanggil dari evbent handler, bukan render)
-    const pushHistory = () =>
-      setHistory((h) =>
-        [...h, { k: state.active, maps: snapshot(profile) }].slice(-MAX_HISTORY),
-      );
-
     const patchProfile = (fn: (p: ProfileState) => ProfileState) => {
-      pushHistory();
       setState((s) => {
         if (!s) return s;
         const p = s.profiles[s.active];
         return { ...s, profiles: { ...s.profiles, [s.active]: fn(p) } };
       });
-    };
-
-    const undo = () => {
-      for (let i = history.length - 1; i >= 0; i--) {
-        const e = history[i];
-        if (e.k === state.active) {
-          setState((s) => {
-            if (!s) return s;
-            const p = s.profiles[e.k];
-            return { ...s, profiles: { ...s.profiles, [e.k]: { ...p, ...e.maps } } };
-          });
-          setHistory((h) => h.slice(0, i));
-          return;
-        }
-      }
     };
 
     const updateSpec = (patch: Partial<EngineSpec>) =>
@@ -209,34 +149,6 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       patchProfile((p) => ({ ...p, ignition: setCell(p.ignition, r, c, v) }));
     const setInjOffset = (r: number, c: number, v: number) =>
       patchProfile((p) => ({ ...p, injOffset: setCell(p.injOffset, r, c, v) }));
-    const setAfrMeasured = (r: number, c: number, v: number) =>
-      patchProfile((p) => ({
-        ...p,
-        afrMeasured: setCell(p.afrMeasured, r, c, v),
-      }));
-    const clearAfrMeasured = () =>
-      patchProfile((p) => ({ ...p, afrMeasured: makeGrid(p.spec).afrMeasured }));
-
-    // Terapkan koreksi AFR terukur ke Fuel Correction: utk tiap sel dengan AFR
-    // terukur, hitung koreksi % agar jadi target dan tulis ke fuelCorr.
-    const applyCalibration = () => {
-      let applied = 0;
-      for (const row of profile.afrMeasured) {
-        for (const v of row) if (v > 0) applied++;
-      }
-      patchProfile((p) => {
-        const rpx = rpmGrid(p.spec);
-        const next = p.fuelCorr.map((row, j) =>
-          row.map((v, i) => {
-            const m = p.afrMeasured[j]?.[i] ?? 0;
-            return m > 0 ? calibrationCorrPct(p.spec, rpx[i], TPS_STEPS[j], m) : v;
-          }),
-        );
-        return { ...p, fuelCorr: next };
-      });
-      return applied;
-    };
-
     return {
       ...profile,
       rpms,
@@ -248,20 +160,14 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       setFuel,
       setIgnition,
       setInjOffset,
-      setAfrMeasured,
-      clearAfrMeasured,
-      applyCalibration,
       regenBaseMap: () =>
         patchProfile((p) => ({ ...p, baseMap: makeGrid(p.spec).baseMap })),
       resetFuel: () => patchProfile((p) => ({ ...p, fuelCorr: makeGrid(p.spec).fuelCorr })),
       resetIgnition: () =>
         patchProfile((p) => ({ ...p, ignition: makeGrid(p.spec).ignition })),
       resetInj: () => patchProfile((p) => ({ ...p, injOffset: makeGrid(p.spec).injOffset })),
-      undo,
-      canUndo: history.some((e) => e.k === state.active),
-      undoDepth: history.filter((e) => e.k === state.active).length,
     };
-  }, [state, rpms, history]);
+  }, [state, rpms]);
 
   if (!value) {
     return <React.Fragment />;
@@ -310,7 +216,6 @@ function alignToSpec(profile: ProfileState, spec: EngineSpec): ProfileState {
     fuelCorr: resizeMap(profile.fuelCorr, n, m, (i) => def.fuelCorr[i]),
     ignition: resizeMap(profile.ignition, n, m, (i) => def.ignition[i]),
     injOffset: resizeMap(profile.injOffset, n, m, (i) => def.injOffset[i]),
-    afrMeasured: resizeMap(profile.afrMeasured, n, m, (i) => def.afrMeasured[i]),
   };
 }
 

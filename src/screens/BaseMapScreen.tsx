@@ -10,8 +10,7 @@ import { TPS_STEPS } from '../types';
 import { useCopy } from '../useCopy';
 
 export default function BaseMapScreen() {
-  const { spec, rpms, baseMap, setBaseMap, regenBaseMap, undo, canUndo, undoDepth } =
-    useEngine();
+  const { spec, rpms, baseMap, setBaseMap, regenBaseMap } = useEngine();
   const [edit, setEdit] = useState<{ r: number; c: number } | null>(null);
   const { copiedTps, copiedAll, copy, copyAllMap } = useCopy(rpms);
 
@@ -49,15 +48,6 @@ export default function BaseMapScreen() {
         <View style={styles.btnRow}>
           <Pressable style={styles.btn} onPress={regenBaseMap}>
             <Text style={styles.btnText}>Generate ulang dari spek</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.btn, !canUndo && styles.btnDisabled]}
-            disabled={!canUndo}
-            onPress={undo}
-          >
-            <Text style={[styles.btnText, !canUndo && styles.btnDisabledText]}>
-              Undo{undoDepth > 0 ? ` (${undoDepth})` : ''}
-            </Text>
           </Pressable>
           <Pressable style={[styles.btn, styles.btnCopy]} onPress={grid.onCopyAll}>
             <Text style={[styles.btnText, styles.btnCopyText]}>Salin Semua</Text>
@@ -133,9 +123,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   btnCopy: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  btnDisabled: { opacity: 0.4 },
   btnText: { color: Colors.accent, fontSize: FontSize.sm, fontWeight: '700' },
-  btnDisabledText: { color: Colors.textDim },
   btnCopyText: { color: '#111' },
   copied: {
     color: Colors.ok,

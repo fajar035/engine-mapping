@@ -12,7 +12,6 @@ import BaseMapScreen from "./src/screens/BaseMapScreen";
 import FuelScreen from "./src/screens/FuelScreen";
 import IgnitionScreen from "./src/screens/IgnitionScreen";
 import InjectorScreen from "./src/screens/InjectorScreen";
-import CalibrationScreen from "./src/screens/CalibrationScreen";
 import SetupScreen from "./src/screens/SetupScreen";
 import GuideScreen from "./src/screens/GuideScreen";
 import DisclaimerModal from "./src/components/DisclaimerModal";
@@ -139,16 +138,6 @@ export default function App() {
                 title: "Inj. Timing",
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name="hourglass" size={size} color={color} />
-                )
-              }}
-            />
-            <Tab.Screen
-              name="Calibrate"
-              component={CalibrationScreen}
-              options={{
-                title: "Kalibrasi",
-                tabBarIcon: ({ color, size }) => (
-                  <Ionicons name="flask" size={size} color={color} />
                 )
               }}
             />

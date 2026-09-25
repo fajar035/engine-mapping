@@ -23,8 +23,6 @@ export interface EngineSpec {
   intakeIVC: number; // IN tutup: ° sesudah TMB (ABDC)
   exhaustEVO: number; // EX buka: ° sebelum TMB (BBDC)
   exhaustEVC: number; // EX tutup: ° sesudah TMA (ATDC)
-  intakeLift: number;
-  exhaustLift: number;
 
   // Injector
   injectorFlowCC: number;
@@ -33,23 +31,16 @@ export interface EngineSpec {
   injectorDeadTime: number;
 
   // Pasokan udara
-  throttleBodyMM: number;
   veMax: number;
   altitudeM: number; // ketinggian lokasi (m) utk koreksi densitas udara
   airTempC: number; // suhu udara intake/lingkungan (°C)
 
-  // Klep
-  valveIntakeMM: number;
-  valveExhaustMM: number;
-
   // Knalpot (drag pipe / megaphone)
   exhaustP1MM: number; // ukuran header P1 (ujung taper, mis. 30-34-38 -> 38)
-  exhaustInletMM: number; // inlet seher/stop
   exhaustOutletMM: number; // outlet seher/stop
 
-  // Bahan bakar & efisiensi
+  // Bahan bakar & pembacaan ECU
   octane: number;
-  thermalEff: number;
   injPhaseOffset: number;
   ignBaseOffset: number; // offset bacaan ignition thd acuan JUKEN (manual JUKEN: +9°)
 
@@ -61,7 +52,6 @@ export interface EngineSpec {
   afrWotHigh: number; // WOT + rpm tinggi
 
   // Grid mapping
-  idleRPM: number;
   maxRPM: number; // tinggi kolom tabel JUKEN (batas tabel, contoh 16000)
   limiterRPM: number; // batas putaran nyata ECU/limiter mesin (0 = pakai maxRPM)
   rpmStep: number;
@@ -87,19 +77,12 @@ export interface EngineStats {
   clearanceCC: number;
   cam: CamEvents;
   torquePeakRPM: number;
-  powerPeakRPM: number;
-  powerPeakHP: number;
   maxPistonSpeed: number;
   injRequiredCC: number;
   injRequiredPer: number;
   injInstalledCC: number;
   dutyAtPeak: number;
   dutyAtLimiter: number;
-  tbsqToBoreRatio: number;
-  valveInRatio: number;
-  valveExRatio: number;
-  curtainInMM2: number;
-  flowCeilingHP: number;
   headerVsBore: number;
 }
 

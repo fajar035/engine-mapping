@@ -13,7 +13,6 @@ import StatCard from "../components/StatCard";
 import {
   airDensityGL,
   computeStats,
-  horsepowerAt,
   redlineRPM,
   specInputIssues,
   validateSpec
@@ -34,9 +33,6 @@ export default function SetupScreen() {
 
   const inputIssues = specInputIssues(spec);
   const issuesByKey = new Map(inputIssues.map((i) => [i.key, i.msg]));
-
-  const hpAtTorque = horsepowerAt(spec, stats.torquePeakRPM);
-  const hpAtMax = horsepowerAt(spec, redlineRPM(spec));
 
   const focus = SETUP_OPTIONS.find((o) => o.key === active) ?? SETUP_OPTIONS[0];
 
@@ -112,18 +108,14 @@ export default function SetupScreen() {
         <StatCard
           label="Torsi Puncak"
           value={`${stats.torquePeakRPM.toLocaleString("id-ID")} rpm`}
-          sub={`~${hpAtTorque.toFixed(1)} HP di sini`}
-        />
-        <StatCard
-          label="Power Puncak"
-          value={`~${stats.powerPeakHP} HP`}
-          sub={`di ${stats.powerPeakRPM.toLocaleString("id-ID")} rpm (estimasi)`}
-          tone="warn"
+          sub="acuan posisi VE puncak"
+          tone="ok"
         />
         <StatCard
           label="Kecepatan Piston"
           value={`${stats.maxPistonSpeed} m/s`}
           sub={`@ ${redlineRPM(spec).toLocaleString("id-ID")} rpm (limiter)`}
+          tone={stats.maxPistonSpeed > 22 ? "warn" : "default"}
         />
         <StatCard
           label="Injektor Butuh"
@@ -142,27 +134,6 @@ export default function SetupScreen() {
           tone={stats.dutyAtLimiter > 0.85 ? "warn" : "default"}
         />
         <StatCard
-          label="TB vs Bore"
-          value={`${stats.tbsqToBoreRatio}%`}
-          sub={`TB ${spec.throttleBodyMM}mm / bore ${stats.boreRealMM}mm`}
-        />
-        <StatCard
-          label="Klep vs Bore"
-          value={`IN ${stats.valveInRatio}%`}
-          sub={`IN ${spec.valveIntakeMM} / EX ${spec.valveExhaustMM}mm`}
-        />
-        <StatCard
-          label="Curtain Klep IN"
-          value={`${stats.curtainInMM2} mm²`}
-          sub={`π×${spec.valveIntakeMM}×${spec.intakeLift}`}
-        />
-        <StatCard
-          label="Flow Ceiling"
-          value={`${stats.flowCeilingHP} HP`}
-          sub="Batas atas dari luas klep"
-          tone={stats.powerPeakHP > stats.flowCeilingHP ? "warn" : "default"}
-        />
-        <StatCard
           label="Header vs Bore"
           value={`${stats.headerVsBore}%`}
           sub={`P1 ${spec.exhaustP1MM}mm / bore ${stats.boreRealMM}mm`}
@@ -172,8 +143,8 @@ export default function SetupScreen() {
       <Section title="Input Spek Wajib (dipakai hitung map)" block>
         {inputIssues.length === 0 ? (
           <Text style={styles.hintLine}>
-            Semua field kritis terisi. Field opsional (TB, klep, lift, thermal,
-            inlet knalpot, idle RPM) tidak memengaruhi hasil map.
+            Semua field terisi. Setiap field di bawah ikut menghitung Base Map,
+            Ignition Timing, atau Injector Timing.
           </Text>
         ) : (
           inputIssues.map((it) => (
@@ -273,26 +244,6 @@ export default function SetupScreen() {
           warn={issuesByKey.get("exhaustEVO")}
           onChange={(v) => updateSpec({ exhaustEVC: v })}
         />
-        <NumField
-          label="Lift Intake"
-          value={spec.intakeLift}
-          unit="mm"
-          step={0.05}
-          min={5}
-          max={15}
-          hint="opsional — ceiling HP saja"
-          onChange={(v) => updateSpec({ intakeLift: v })}
-        />
-        <NumField
-          label="Lift Exhaust"
-          value={spec.exhaustLift}
-          unit="mm"
-          step={0.05}
-          min={5}
-          max={15}
-          hint="opsional — tidak dipakai hitung map"
-          onChange={(v) => updateSpec({ exhaustLift: v })}
-        />
       </Section>
 
       <Section title="Mesin">
@@ -348,7 +299,7 @@ export default function SetupScreen() {
         />
       </Section>
 
-      <Section title="Injector & TB">
+      <Section title="Injector & Pasokan Udara">
         <NumField
           label="Flow Injektor"
           value={spec.injectorFlowCC}
@@ -390,16 +341,6 @@ export default function SetupScreen() {
           onChange={(v) => updateSpec({ injectorDeadTime: v })}
         />
         <NumField
-          label="Diameter TB"
-          value={spec.throttleBodyMM}
-          unit="mm"
-          step={1}
-          min={16}
-          max={60}
-          hint="opsional — statistik TB vs bore saja"
-          onChange={(v) => updateSpec({ throttleBodyMM: v })}
-        />
-        <NumField
           label="VE Maks"
           value={spec.veMax}
           unit="x"
@@ -432,27 +373,7 @@ export default function SetupScreen() {
         />
       </Section>
 
-      <Section title="Klep & Knalpot">
-        <NumField
-          label="Klep Intake"
-          value={spec.valveIntakeMM}
-          unit="mm"
-          step={0.5}
-          min={18}
-          max={48}
-          hint="opsional — statistik rasio klep & ceiling HP"
-          onChange={(v) => updateSpec({ valveIntakeMM: v })}
-        />
-        <NumField
-          label="Klep Exhaust"
-          value={spec.valveExhaustMM}
-          unit="mm"
-          step={0.5}
-          min={18}
-          max={42}
-          hint="opsional — statistik rasio klep"
-          onChange={(v) => updateSpec({ valveExhaustMM: v })}
-        />
+      <Section title="Knalpot">
         <NumField
           label="Header P1"
           value={spec.exhaustP1MM}
@@ -463,16 +384,6 @@ export default function SetupScreen() {
           hint="ujung taper, mis. 30-34-38 = 38"
           warn={issuesByKey.get("exhaustP1MM")}
           onChange={(v) => updateSpec({ exhaustP1MM: v })}
-        />
-        <NumField
-          label="Inlet Knalpot"
-          value={spec.exhaustInletMM}
-          unit="mm"
-          step={1}
-          min={20}
-          max={60}
-          hint="opsional — tidak dipakai hitung map"
-          onChange={(v) => updateSpec({ exhaustInletMM: v })}
         />
         <NumField
           label="Outlet Knalpot"
@@ -487,7 +398,7 @@ export default function SetupScreen() {
         />
       </Section>
 
-      <Section title="Bahan Bakar & Efisiensi">
+      <Section title="Bahan Bakar & Offset ECU">
         <NumField
           label="Oktan"
           value={spec.octane}
@@ -497,16 +408,6 @@ export default function SetupScreen() {
           max={100}
           warn={issuesByKey.get("octane")}
           onChange={(v) => updateSpec({ octane: v })}
-        />
-        <NumField
-          label="Efisiensi Termal"
-          value={spec.thermalEff}
-          unit=""
-          step={0.01}
-          min={0.15}
-          max={0.45}
-          hint="opsional — estimasi HP saja (statistik)"
-          onChange={(v) => updateSpec({ thermalEff: v })}
         />
         <NumField
           label="Offset Fase Injeksi"
@@ -531,16 +432,6 @@ export default function SetupScreen() {
       </Section>
 
       <Section title="Grid Mapping">
-        <NumField
-          label="Idle RPM"
-          value={spec.idleRPM}
-          unit="rpm"
-          step={100}
-          min={500}
-          max={4000}
-          hint="Idle asli mesin (referensi). Tabel tetap mulai 1000 sesuai format JUKEN"
-          onChange={(v) => updateSpec({ idleRPM: v })}
-        />
         <NumField
           label="Max RPM"
           value={spec.maxRPM}
@@ -640,15 +531,10 @@ export default function SetupScreen() {
 
       <Section title="Catatan">
         <Text style={styles.notes}>
-          Semua hasil adalah estimasi berbasis spek. Tabel map otomatis
-          menyesuaikan idle–max RPM. HP puncak & MV dihitung dari model VE
-          (volumetric efficiency); gunakan sebagai titik awal tuning, bukan
-          angka absolut. Kalibrasi akhir tetap dari dyno/afr meter di lapangan.
-        </Text>
-        <Text style={styles.notes}>
-          Power @ torsi puncak: {hpAtTorque.toFixed(1)} HP • Power @ limiter{" "}
-          {redlineRPM(spec).toLocaleString("id-ID")} rpm: {hpAtMax.toFixed(1)}{" "}
-          HP
+          Semua hasil adalah estimasi berbasis spek. Base Map, Ignition Timing,
+          dan Injector Timing digenerate dari model airflow (VE) + target AFR;
+          gunakan sebagai titik awal tuning, bukan angka absolut. Kalibrasi akhir
+          tetap dari dyno / AFR meter di lapangan.
         </Text>
       </Section>
     </ScrollView>
