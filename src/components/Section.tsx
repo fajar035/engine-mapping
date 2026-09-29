@@ -44,9 +44,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    // Tanpa minWidth:0, anak yang content-nya lebih lebar dari kartu menolak
+    // menyusut lalu terpotong oleh overflow:'hidden' di wrap.
+    minWidth: 0,
   },
   bodyBlock: {
     flexDirection: 'column',
     justifyContent: 'flex-start',
+    minWidth: 0,
   },
 });

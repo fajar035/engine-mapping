@@ -56,6 +56,7 @@ export default function IgnitionScreen() {
         </View>
       </View>
 
+
       <MapGrid
         rowLabels={TPS_STEPS}
         colLabels={rpms}

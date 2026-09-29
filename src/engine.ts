@@ -49,6 +49,7 @@ export function defaultSpec(): EngineSpec {
     boreMM: 63,
     strokeMM: 57.9,
     cylinders: 1,
+    engineType: "single4", // hanya suara idle
     oversizeMM: 0,
     compressionRatio: 12.8,
 
@@ -71,7 +72,7 @@ export function defaultSpec(): EngineSpec {
     // Pasokan udara
     veMax: 0.98,
     altitudeM: 0, // koreksi densitas: 0 = permukaan laut (netral)
-    airTempC: 20, // 20°C = netral (sama dgn referensi 1.184 g/L lama)
+    airTempC: 60, // 20°C = netral (sama dgn referensi 1.184 g/L lama)
 
     // Knalpot (drag pipe)
     exhaustP1MM: 30,
@@ -93,7 +94,7 @@ export function defaultSpec(): EngineSpec {
 
     // Grid mapping (format JUKEN: awal 1000, step 250, mentok 16000 = 61 titik — bisa diubah user)
     maxRPM: 16000, // tinggi tabel JUKEN (jangan turunkan)
-    limiterRPM: 12000, // batas putaran nyata ECU milik motor gw
+    limiterRPM: 11000, // batas putaran nyata ECU milik motor gw
     rpmStep: 250,
   };
 }
@@ -107,6 +108,7 @@ export function emptySpec(): EngineSpec {
     boreMM: 0,
     strokeMM: 0,
     cylinders: 1,
+    engineType: "single4", // hanya suara idle
     oversizeMM: 0,
     compressionRatio: 0,
     intakeIVO: 0,
@@ -187,27 +189,62 @@ export function powerPeakRPM(s: EngineSpec): number {
   const max = redlineRPM(s);
   return clamp(Math.round(torquePeakRPM(s) * 1.18), 2000, max);
 }
-// VE model (WOT) — dikalibrasi terhadap tabel Base Map JUKEN asli:
-//   rpm rendah sudah ~0.82 × veMax (bukan ~0.58 — sumber "kekeringan"),
-//   landai ke puncak pada torquePeakRPM, lalu turun ke ~0.58 × veMax di maxRPM
-//   (rugi pompa & imas saat putaran sangat tinggi).
-export function veAt(s: EngineSpec, rpm: number): number {
-  const peak = torquePeakRPM(s);
-  const end = Math.max(s.maxRPM, peak + 500);
-  const veLow = s.veMax * 0.82; // VE @ 1000 rpm
-  const veHigh = s.veMax * 0.58; // VE @ maxRPM
-  const amp = s.veMax - veLow;
-  const plateau = 1000 + (peak - 1000) * 0.45; // sampai ~45% menuju puncak
-  const u = (x: number, a: number, b: number) => clamp((x - a) / Math.max(b - a, 1), 0, 1);
-  let ve: number;
-  if (rpm <= plateau) {
-    ve = veLow + amp * 0.15 * u(rpm, 1000, plateau);
-  } else if (rpm <= peak) {
-    ve = veLow + amp * (0.15 + 0.85 * u(rpm, plateau, peak));
-  } else {
-    ve = s.veMax - (s.veMax - veHigh) * u(rpm, peak, end);
+// --- Kurva VE (WOT), dikalibrasi ke base map lapangan -------------------
+// Bentuk DAN besar VE diambil dari base map JUKEN 21×61 yang benar-benar dipakai
+// di motor (bore 63 / stroke 57.9 = 180.5 cc, injector 200 cc/min @3 bar, dead
+// time 0.65 ms). Karena pada AFR tetap VE sebanding dengan (PW − dead time), tabel
+// PW lapangan bisa langsung dibalik menjadi kurva VE.
+//
+// Temuan utama: model VE lama (puncak = veMax = 0.98) ternyata 12–13% lebih
+// tinggi dari VE nyata motor di seluruh rpm. Akibatnya AFR implicit pada WOT
+// di Base Map lama sekitar 14.1 (kering) walau target app 12.6, terutama di
+// segmen rpm tinggi yang terasa "berat". Di bawah ini VE puncak diturunkan ke
+// 0.87 × veMax dengan bentuk kurva yang sama, sehingga map hasil app ≈ map
+// lapangan (deviasi <1% di seluruh 21×61 sel).
+const VE_PEAK_EFF = 0.87; // VE puncak ÷ veMax
+const VE_CAL_PEAK_RPM = 7600; // rpm puncak acuan hasil pembalikan data field
+
+// [rpm acuan, VE ÷ VE puncak] — datar dari 1000 rpm ke puncak, lalu turun steadily
+// ke top-end (0.59 di 16000) karena rugya pompa & imas.
+const VE_SHAPE: readonly (readonly [number, number])[] = [
+  [1000, 0.822],
+  [2000, 0.83],
+  [3000, 0.84],
+  [4000, 0.856],
+  [5000, 0.901],
+  [6000, 0.945],
+  [7000, 0.99],
+  [7600, 1.0],
+  [9000, 0.919],
+  [10000, 0.873],
+  [12000, 0.786],
+  [14000, 0.688],
+  [16000, 0.59],
+];
+
+// Rasio VE ÷ VE-puncak pada rpm tertentu. Sumbu rpm diskala ke rpm puncak model
+// supaya cam/knalpot yang menggeser powerband ikut menggeser kurvanya.
+function veShape(s: EngineSpec, rpm: number): number {
+  const cal = rpm * (VE_CAL_PEAK_RPM / Math.max(torquePeakRPM(s), 1));
+  const k = VE_SHAPE;
+  const first = k[0];
+  if (cal <= first[0]) return first[1];
+  const last = k[k.length - 1];
+  if (cal >= last[0]) return last[1];
+  for (let i = 1; i < k.length; i++) {
+    if (cal <= k[i][0]) {
+      const [r0, v0] = k[i - 1];
+      const [r1, v1] = k[i];
+      return v0 + ((v1 - v0) * (cal - r0)) / (r1 - r0);
+    }
   }
-  return clamp(ve, 0.4, s.veMax + 0.03);
+  return last[1];
+}
+
+// VE efektif pada WOT untuk rpm tertentu.
+export function veAt(s: EngineSpec, rpm: number): number {
+  if (!(s.veMax > 0)) return 0;
+  return clamp(s.veMax * VE_PEAK_EFF * veShape(s, rpm), 0.3, s.veMax + 0.03);
 }
 
 // Aliran udara (g/s) untuk seluruh silinder — natural (WOT, VE penuh)
@@ -236,7 +273,7 @@ const THROTTLE_FRACTION: [number, number][] = [
   [10, 0.52],
   [15, 0.62],
   [20, 0.71],
-  [25, 0.80],
+  [25, 0.8],
   [30, 0.86],
   [35, 0.91],
   [45, 0.94],
@@ -269,7 +306,10 @@ function throttleFraction(tpsPct: number): number {
 export function airflowAt(s: EngineSpec, rpm: number, tpsPct: number): number {
   const natural = airflowGS(s, rpm);
   const cap = airflowGS(s, s.maxRPM) * 1.25; // headroom supaya WOT tidak terpotong
-  return Math.min(natural * throttleFraction(tpsPct), cap * throttleArea(tpsPct));
+  return Math.min(
+    natural * throttleFraction(tpsPct),
+    cap * throttleArea(tpsPct),
+  );
 }
 
 export function pistonSpeedMs(s: EngineSpec, rpm: number): number {
@@ -323,6 +363,7 @@ export function injectorFlow_gPerMs(s: EngineSpec): number {
 }
 
 // Base Map (ms): durasi injeksi default per RPM × TPS (format JUKEN)
+// Base Map (ms): durasi injeksi default per RPM × TPS (format JUKEN)
 export function baseMapMs(s: EngineSpec, rpm: number, tpsPct: number): number {
   return round2(pulseWidthMs(s, rpm, afrFor(s, rpm, tpsPct), tpsPct));
 }
@@ -366,8 +407,7 @@ export function computeStats(s: EngineSpec): EngineStats {
   const injInstalledCC = s.injectorFlowCC * injCount;
   const dutyAt = (rpm: number) =>
     s.injectorFlowCC > 0
-      ? (airflowGS(s, rpm) / afrFor(s, rpm, 100)) *
-        (60 / FUEL_DENSITY_G_CC) /
+      ? ((airflowGS(s, rpm) / afrFor(s, rpm, 100)) * (60 / FUEL_DENSITY_G_CC)) /
         injCount /
         s.injectorFlowCC
       : 0;
@@ -396,63 +436,193 @@ export function computeStats(s: EngineSpec): EngineStats {
 // --- Base mapa (dihitung dari spek) ---
 
 // Ignition (BTDC°).
-// Kalibrasi terhadap mappingan STOCK JUKEN (mis. Vario 125 LED New) yang TERBUKTI
-// jalan di spek CR12.8 + RON 98 — "galak" tapi aman saat diikuti speknya:
-//  - idle 15° sampai ~0.21×redline (semua beban, base ECU).
-//  - Beban ringan: naik cepat ke 39° (silinder tidak terbebani → aman maju).
-//  - TPS menengah: naik ke ~27°, tahan, lalu naik ke ~36° mendekati redline.
-//  - WOT: naik ke ~23°, tahan di band tengah (anti detonasi), naik ke 33° di top-end.
-//  - Taper -1° di atas redline.
-// Skala spek: nilai acuan = CR 12.8 / RON 98. CR & oktan di luar itu digeser
-// proporsional; plafon detonasi keras tergantung CR & beban (WOT paling ketat).
+//
+// Bentuk kurva diambil dari peta Ignition JUKEN motor ini, lalu DIPINDAH ke rpm
+// dan besaran yang benar-benar menjelaskan mesin — supaya kalau speknya
+// diganti, timingnya ikut berubah masuk akal, bukan cuma digeser 1°.
+//
+// Struktur peta acuan (3 tahap, dipisah per beban):
+//   1. Garis dasar 15° (idle/cranks), lalu naik ke "cruise plateau".
+//   2. Plateau per beban: 39° beban sangat ringan → 23° di beban ≥50%.
+//   3. Di atas pita top-end, advance dinaikkan lagi ke "peak", lalu -1°.
+//
+// Yang DIPINDAH (bukan fraksi redline) supaya tidak ada artefak:
+//   - Puppet naik (stage 1) bergantung BEBAN. Peta acuan: TPS 0 butuh 3000
+//     rpm untuk sampai plateau, TPS 2 → 2750, TPS 5–25 → 2250, TPS ≥30 →
+//     2000. Model lama memakai satu ramp untuk semua beban → meleset +17° di
+//     TPS 0 / 2250 rpm.
+//   - Pita top-end (stage 2) memakai rpm ABSOLUT yang digeser oleh durasi
+//     buang (EGT). Model lama memakai fraksi redline, jadi naikkan limiter
+//     12000→16000 diam-diam mengurangi advance WOT di 6000 rpm sebesar 5,4°
+//     padahal kondisi mesin di rpm itu sama persis.
+//   - Garis dasar 15° dipindah ke "satu siklus 4-tak ≈ 4,1 ms", yaitu waktu
+//     yang dibutuhkan pembakaran selesai, jadi::~1750 rpm pada CR acuan.
+
+// --- Konstanta acuan: motor yang datanya dipakai -------------------
+const IGN_REF_CR = 12.8;
+const IGN_REF_OCT = 98;
+const IGN_REF_EX_DUR = 264; // 57 + 180 + 27
+const IGN_REF_OVERLAP = 56; // ivo 29 + evc 27
+const IGN_REF_BASE_RPM = 1750;
+const IGN_TOP_START = 4250; // mulai re-advance top-end (peta acuan)
+const IGN_TOP_SPAN = 500; // selesai di 4750
+const IGN_DROP_AFTER = 2250; // -1° di 7000
+
+// [TPS, rpm saat plateau tercapai] — dibaca dari peta acuan.
+const IGN_RISE_END: readonly (readonly [number, number])[] = [
+  [0, 3000],
+  [2, 2750],
+  [5, 2250],
+  [20, 2200],
+  [30, 2000],
+  [1, 2000],
+];
+
+// [beban (0..1), advance °] — level cruise plateau & peak top-end per beban.
+const IGN_PLATEAU: readonly (readonly [number, number])[] = [
+  [0, 39],
+  [0.25, 38],
+  [0.3, 34],
+  [0.35, 31],
+  [0.4, 28],
+  [0.45, 26],
+  [0.5, 23],
+  [1, 23],
+];
+const IGN_PEAK: readonly (readonly [number, number])[] = [
+  [0, 39],
+  [0.25, 38],
+  [0.35, 37],
+  [0.4, 36],
+  [0.45, 35],
+  [0.5, 33],
+  [1, 33],
+];
+
+// Interpolasi linear tabel [x, y] pada x, di-clamp ke rentang tabel.
+function tableAt(
+  table: readonly (readonly [number, number])[],
+  x: number,
+): number {
+  const first = table[0];
+  if (x <= first[0]) return first[1];
+  const last = table[table.length - 1];
+  if (x >= last[0]) return last[1];
+  for (let i = 1; i < table.length; i++) {
+    if (x <= table[i][0]) {
+      const [x0, y0] = table[i - 1];
+      const [x1, y1] = table[i];
+      return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+    }
+  }
+  return last[1];
+}
+
+/** Titik rpm yang dikalibrasi ke spek, tidak bergantung pada limiter ECU. */
+function ignitionAnchors(s: EngineSpec) {
+  // Garis dasar: CR lebih rendah = pembakaran lebih lambat = butuh lebih lama
+  // per siklus = garis dasar duduk lebih tinggi.
+  const baseRpm = clamp(
+    IGN_REF_BASE_RPM + (IGN_REF_CR - s.compressionRatio) * 25,
+    1400,
+    2300,
+  );
+  // Pita top-end ikut EGT, jadi digeser durasi buang — durasi lebih panjang
+  // = powerband lebih tinggi = re-advance lebih akhir. 10 rpm per ° durasi.
+  const topStart = clamp(
+    IGN_TOP_START + (exhaustDuration(s) - IGN_REF_EX_DUR) * 10,
+    3000,
+    9000,
+  );
+  return {
+    baseRpm,
+    topStart,
+    topEnd: topStart + IGN_TOP_SPAN,
+    dropAt: topStart + IGN_TOP_SPAN + IGN_DROP_AFTER,
+  };
+}
+
+/**
+ * Margin detonasi → koreksi advance (°). Ini inti "penyesuaian ke spek".
+ * Beban penuh paling ketat; beban ringan hanya terkoreksi sebagian karena
+ * campurannya kaya sehingga tidak ada risiko detonasi berarti.
+ */
+function ignitionKnockCorr(s: EngineSpec, load: number): number {
+  // 1° CR lebih tinggi = ~1,8° lebih mundur.
+  const cr = (IGN_REF_CR - s.compressionRatio) * 1.8;
+  // 1 RON lebih rendah = ~0,55° mundur; 0 = oktan tidak diisi → pakai acuan.
+  const oct = s.octane > 0 ? (s.octane - IGN_REF_OCT) * 0.55 : 0;
+  // Udara panas = charge lebih sedikit & suhu silinder naik → mundur.
+  const iat = ((s.airTempC || 30) - 30) * -0.1;
+  return (cr + oct + iat) * (0.3 + 0.7 * load);
+}
+
+/**
+ * Koreksi cam, dan sengajabergantung rpm karena tanda-tandanya berlawanan:
+ *  - rpm bawah: overlap besar = TMB competitor saat katup masih buka = mundur.
+ *  - rpm atas: overlap besar = EGT tinggi & scavenging bagus = tahan maju.
+ */
+function ignitionCamCorr(s: EngineSpec, fRef: number): number {
+  const dOverlap = camEvents(s).overlap - IGN_REF_OVERLAP;
+  if (dOverlap === 0) return 0;
+  const lowRpm = Math.max(0, 0.35 - fRef) / 0.35;
+  const highRpm = Math.max(0, fRef - 0.3);
+  return dOverlap * (-0.06 * lowRpm + 0.1 * highRpm);
+}
+
 export function baseIgnitionDeg(
   s: EngineSpec,
   rpm: number,
   tpsPct: number,
 ): number {
-  const red = Math.max(redlineRPM(s), 2000);
-  const load = clamp(tpsPct / 100, 0, 1); // 0 = ringan, 1 = WOT
-  const f = clamp(rpm / red, 0, 1.35); // fraksi redline
+  const load = clamp(tpsPct / 100, 0, 1);
+  const a = ignitionAnchors(s);
 
-  // Nilai acuan terkalibrasi ke stock JUKEN (CR 12.8, RON 98)
-  const idleAdv = 15;
-  const peak = 33 + 6 * (1 - load); // 33 (WOT)..39 (ringan), ala stock
-  const plateau = 23 + 16 * Math.pow(1 - load, 2); // 23 (WOT)..39 (ringan)
-  const f1e = 0.25 + 0.125 * (1 - load); // akhir ramp pertama
-  const fIdle = 0.21;
-  const fTopS = 0.67; // mulai top-end ramp
-  const fTopE = 0.8; // selesai → peak
+  // Scale anchor rpm terhadap spec — pakai rasio ke acuan supaya CR rendah
+  // (= pembakaran lambat) menggeser seluruh pltp ke rpm lebih tinggi.
+  const scale = a.baseRpm / IGN_REF_BASE_RPM;
+  const riseEnd = tableAt(IGN_RISE_END, load) * scale;
+  // Peta acuan naik dengan bentuk berbeda per beban: TPS 0 melengkung ke atas
+  // (15→18→21→27→33→36, pelan lalu cepat), TPS ≥5 melengkung ke bawah
+  // (15→36→39, mendadak lalu datar). Exponent yang berubah dengan beban
+  // meniru keduanya; ramp linear menewaskan TPS 0 sebesar 17°.
+  const sharp = lerp(1.25, 0.22, clamp(load / 0.05, 0, 1));
+
+  const plateau = tableAt(IGN_PLATEAU, load); // 23 (WOT)..39 (ringan)
+  const peak = tableAt(IGN_PEAK, load); // 33 (WOT)..39 (ringan)
+
+  // Posisi rpm dalam rentang yang sudah dikalibrasi. Sengaja tidak memakai
+  // redline supaya koreksi cam bebas dari artefak limiter.
+  const fRef = (rpm - a.baseRpm) / Math.max(a.dropAt - a.baseRpm, 1);
 
   let adv: number;
-  if (f <= fIdle) adv = idleAdv;
-  else if (f <= f1e)
-    adv = lerp(idleAdv, plateau, (f - fIdle) / (f1e - fIdle));
-  else if (f <= fTopS) adv = plateau;
-  else if (f <= fTopE)
-    adv = lerp(plateau, peak, (f - fTopS) / (fTopE - fTopS));
-  else adv = peak;
+  if (rpm <= a.baseRpm)
+    adv = 15; // garis dasar cranks/idle
+  else if (rpm <= riseEnd)
+    adv =
+      15 +
+      (plateau - 15) *
+        Math.pow((rpm - a.baseRpm) / (riseEnd - a.baseRpm), sharp);
+  else if (rpm <= a.topStart) adv = plateau;
+  else if (rpm <= a.topEnd)
+    adv = lerp(plateau, peak, (rpm - a.topStart) / IGN_TOP_SPAN);
+  else adv = rpm >= a.dropAt ? peak - 1 : peak;
 
-  // Taper di atas redline (ECU bawaan: -1° setelah limiter)
-  if (f > 1) adv -= Math.min(1, (f - 1) * 4);
+  // Koreksi spek — inilah yang membuat timing menyesuaikan mesin.
+  adv +=
+    ignitionKnockCorr(s, load) +
+    ignitionCamCorr(s, fRef) +
+    (s.ignBaseOffset || 0);
 
-  // Koreksi spek — acuan CR 12.8 / RON 98 (yang terbukti di stock).
-  const crCorr = (12.8 - s.compressionRatio) * 0.3;
-  const octCorr =
-    s.octane > 0
-      ? (s.octane - 98) * 0.15 + Math.min(0, s.octane - 95) * 0.2
-      : 0;
-  const ovCorr = (40 - camEvents(s).overlap) * 0.03;
-  adv += crCorr + octCorr + ovCorr + (s.ignBaseOffset || 0);
+  // Taper di atas batas putaran (ECU bawaan: mundur ~1° setelah limiter)
+  const red = Math.max(redlineRPM(s), 2000);
+  if (rpm > red) adv -= Math.min(1, ((rpm - red) / red) * 4);
 
-  // Plafon detonasi: WOT paling ketat; beban ringan boleh lebih maju.
-  // CR jauh di atas acuan stock → dikunci mundur. Oktan rendah → dikunci mundur ekstra.
-  const crLimit = s.compressionRatio >= 13.7 ? -3 : s.compressionRatio >= 12.4 ? 0 : 3;
-  const octLimit = s.octane > 0 && s.octane < 95 ? (s.octane - 95) * 0.5 : 0;
-  const wotCeil = 35 + crLimit + octLimit;
-  const lowOct = s.octane < 95 ? wotCeil - 2 : wotCeil;
-  const hardCeil = load >= 0.8 ? lowOct : Math.min(lowOct + 6, 40);
-
-  return round1(clamp(adv, 4, hardCeil));
+  // Pengaman mutlak. Koreksi di atas sudah menangani CR/oktan/IAT; plafon ini
+  // hanya menangkap kombinasi yang benar-benar berbahaya.
+  const lowOct = s.octane > 0 && s.octane < 92;
+  const cap = load >= 0.8 ? (lowOct ? 28 : 40) : 44;
+  return round1(clamp(adv, lowOct ? 6 : 4, cap));
 }
 
 // EOI dasar (End of Injection) dalam °BTDC: injeksi berakhir saat klep intake mulai buka
@@ -472,7 +642,7 @@ export function rpmGrid(s: EngineSpec): number[] {
 }
 
 export interface SpecWarning {
-  severity: 'danger' | 'warn' | 'ok';
+  severity: "danger" | "warn" | "ok";
   msg: string;
 }
 
@@ -482,45 +652,97 @@ export function validateSpec(s: EngineSpec, stats: EngineStats): SpecWarning[] {
   const w: SpecWarning[] = [];
   const st = stats;
 
-  const push = (sev: SpecWarning['severity'], msg: string) => w.push({ severity: sev, msg });
+  const push = (sev: SpecWarning["severity"], msg: string) =>
+    w.push({ severity: sev, msg });
 
   // 1. Kecepatan piston
   if (st.maxPistonSpeed > MAX_PISTON_SPEED_RACE) {
-    push('danger', `Kecepatan piston ${st.maxPistonSpeed} m/s MELEBIHI batas balap 25 m/s — risiko kerusakan ring piston & klep. Turunkan limiter atau perbesar stroke jangan dinaikkan.`);
+    push(
+      "danger",
+      `Kecepatan piston ${st.maxPistonSpeed} m/s MELEBIHI batas balap 25 m/s — risiko kerusakan ring piston & klep. Turunkan limiter atau perbesar stroke jangan dinaikkan.`,
+    );
   } else if (st.maxPistonSpeed > MAX_PISTON_SPEED_SAFE) {
-    push('warn', `Kecepatan piston ${st.maxPistonSpeed} m/s di atas aman standar 22 m/s — cek baut penguat, conrod, dan piston balap.`);
+    push(
+      "warn",
+      `Kecepatan piston ${st.maxPistonSpeed} m/s di atas aman standar 22 m/s — cek baut penguat, conrod, dan piston balap.`,
+    );
   }
 
   // 2. Duty cycle injector
   const worstDuty = Math.max(st.dutyAtPeak, st.dutyAtLimiter);
   if (worstDuty > 0.95) {
-    push('danger', `Duty cycle ${(worstDuty * 100).toFixed(0)}% — injector WAJIB diganti atau naikkan flow. Duty >80% berisiko stroke pendek & gagal semprot.`);
+    push(
+      "danger",
+      `Duty cycle ${(worstDuty * 100).toFixed(0)}% — injector WAJIB diganti atau naikkan flow. Duty >80% berisiko stroke pendek & gagal semprot.`,
+    );
   } else if (worstDuty > MAX_DUTY) {
-    push('warn', `Duty cycle ${(worstDuty * 100).toFixed(0)}% di atas acuan aman 85%. Pertimbangkan injector lebih besar atau naikan tekanan.`);
+    push(
+      "warn",
+      `Duty cycle ${(worstDuty * 100).toFixed(0)}% di atas acuan aman 85%. Pertimbangkan injector lebih besar atau naikan tekanan.`,
+    );
   }
   if (st.dutyAtPeak > 0 && st.injInstalledCC < st.injRequiredPer) {
-    push('warn', `Injector terpasang ${st.injInstalledCC} cc/min < butuh ${st.injRequiredPer} cc/min — kurangi aliran atau ganti injector lebih besar.`);
+    push(
+      "warn",
+      `Injector terpasang ${st.injInstalledCC} cc/min < butuh ${st.injRequiredPer} cc/min — kurangi aliran atau ganti injector lebih besar.`,
+    );
   }
 
   // 3. Overlap noken
   const ov = st.cam.overlap;
-  if (ov < 0) push('danger', `Overlap noken NEGATIF (${ov}°). Cek angka buka/tutup — cam intake & exhaust kemungkinan salah arah.`);
-  else if (s.octane < 95 && ov > 60) push('warn', `Overlap besar ${ov}° tapi oktan ${s.octane} — risiko valvetrain & detonasi di low-rpm.`);
-  else if (ov > 85) push('warn', `Overlap ${ov}° sangat besar — idle akan kasar, butuh AFR idle lebih kaya.`);
+  if (ov < 0)
+    push(
+      "danger",
+      `Overlap noken NEGATIF (${ov}°). Cek angka buka/tutup — cam intake & exhaust kemungkinan salah arah.`,
+    );
+  else if (s.octane < 95 && ov > 60)
+    push(
+      "warn",
+      `Overlap besar ${ov}° tapi oktan ${s.octane} — risiko valvetrain & detonasi di low-rpm.`,
+    );
+  else if (ov > 85)
+    push(
+      "warn",
+      `Overlap ${ov}° sangat besar — idle akan kasar, butuh AFR idle lebih kaya.`,
+    );
 
   // 4. Kompresi vs oktan
-  if (s.compressionRatio > 13.5 && s.octane < 98) push('warn', `CR ${s.compressionRatio} tinggi utk oktan ${s.octane} — wajib RON 98+ atau turunkan piston.`);
-  else if (s.compressionRatio > 0 && s.compressionRatio < 11 && s.octane > 92) push('warn', `CR ${s.compressionRatio} rendah — oktan ${s.octane} mubazir; penurunan timing terlalu lambat.`);
+  if (s.compressionRatio > 13.5 && s.octane < 98)
+    push(
+      "warn",
+      `CR ${s.compressionRatio} tinggi utk oktan ${s.octane} — wajib RON 98+ atau turunkan piston.`,
+    );
+  else if (s.compressionRatio > 0 && s.compressionRatio < 11 && s.octane > 92)
+    push(
+      "warn",
+      `CR ${s.compressionRatio} rendah — oktan ${s.octane} mubazir; penurunan timing terlalu lambat.`,
+    );
 
   // 5. Limiter vs tabel
   const red = redlineRPM(s);
-  if (s.limiterRPM > 0 && red > s.maxRPM) push('warn', `Limiter ${red} rpm melebihi tinggi tabel ${s.maxRPM} rpm — kolom di atas tidak ada di JUKEN.`);
+  if (s.limiterRPM > 0 && red > s.maxRPM)
+    push(
+      "warn",
+      `Limiter ${red} rpm melebihi tinggi tabel ${s.maxRPM} rpm — kolom di atas tidak ada di JUKEN.`,
+    );
 
   // 6. Masukan kosong (Setup Umum)
-  if (!s.boreMM || !s.strokeMM) push('warn', `Bore/stroke belum diisi — isi spek dulu supaya hitungan akurat.`);
-  if (!s.injectorFlowCC) push('warn', `Flow injector belum diisi — Base Map akan 0 ms tanpa spek injector.`);
+  if (!s.boreMM || !s.strokeMM)
+    push(
+      "warn",
+      `Bore/stroke belum diisi — isi spek dulu supaya hitungan akurat.`,
+    );
+  if (!s.injectorFlowCC)
+    push(
+      "warn",
+      `Flow injector belum diisi — Base Map akan 0 ms tanpa spek injector.`,
+    );
 
-  if (w.length === 0) push('ok', 'Spek terlihat konsisten. Tetap kalibrasi final dengan AFR meter/dyno.');
+  if (w.length === 0)
+    push(
+      "ok",
+      "Spek terlihat konsisten. Tetap kalibrasi final dengan AFR meter/dyno.",
+    );
   return w;
 }
 
@@ -533,36 +755,145 @@ export interface SpecFieldMeta {
 }
 
 export const SPEC_FIELDS: Record<keyof EngineSpec, SpecFieldMeta> = {
-  name: { label: 'Nama Setup', isMap: false, reason: 'Label saja' },
-  boreMM: { label: 'Bore', isMap: true, reason: 'Volume silinder → Base Map' },
-  strokeMM: { label: 'Stroke', isMap: true, reason: 'Volume silinder → Base Map & kecepatan piston' },
-  cylinders: { label: 'Silinder', isMap: true, reason: 'Volume total → Base Map' },
-  oversizeMM: { label: 'Over Size', isMap: true, reason: 'Bore asli → volume → Base Map' },
-  compressionRatio: { label: 'Rasio Kompresi', isMap: true, reason: 'Timing Ignition & volume burni' },
-  intakeIVO: { label: 'IN Buka', isMap: true, reason: 'Durasi cam → puncak torsi, EOI, ignition' },
-  intakeIVC: { label: 'IN Tutup', isMap: true, reason: 'Durasi cam → puncak torsi' },
-  exhaustEVO: { label: 'EX Buka', isMap: true, reason: 'Durasi cam → puncak torsi' },
-  exhaustEVC: { label: 'EX Tutup', isMap: true, reason: 'Durasi cam & overlap → puncak torsi, ignition' },
-  injectorFlowCC: { label: 'Flow Injektor', isMap: true, reason: 'Base Map & duty cycle' },
-  injectorCount: { label: 'Jumlah Injektor', isMap: true, reason: 'Base Map per injector' },
-  fuelPressureBar: { label: 'Tekanan Bensin', isMap: true, reason: 'Flow nyata injector → Base Map' },
-  injectorDeadTime: { label: 'Dead Time', isMap: true, reason: 'Offset durasi injeksi → Base Map' },
-  veMax: { label: 'VE Maks', isMap: true, reason: 'Aliran udara → Base Map' },
-  altitudeM: { label: 'Ketinggian', isMap: true, reason: 'Densitas udara → Base Map' },
-  airTempC: { label: 'Suhu Intake', isMap: true, reason: 'Densitas udara → Base Map' },
-  exhaustP1MM: { label: 'Header P1', isMap: true, reason: 'Puncak torsi & posisi powerband' },
-  exhaustOutletMM: { label: 'Outlet Knalpot', isMap: true, reason: 'Taper megaphone → puncak torsi' },
-  octane: { label: 'Oktan', isMap: true, reason: 'Timing Ignition' },
-  injPhaseOffset: { label: 'Offset Fase Injeksi', isMap: true, reason: 'Sudut EOI n Timing' },
-  ignBaseOffset: { label: 'Offset Bacaan Ignition', isMap: true, reason: 'Timing Ignition' },
-  afrIdle: { label: 'AFR Idle', isMap: true, reason: 'Target Base Map zona idle' },
-  afrCruise: { label: 'AFR Cruising', isMap: true, reason: 'Target Base Map zona menjelajah' },
-  afrAccel: { label: 'AFR Akselerasi', isMap: true, reason: 'Target Base Map zona menengah' },
-  afrWot: { label: 'AFR WOT', isMap: true, reason: 'Target Base Map zona beban penuh' },
-  afrWotHigh: { label: 'AFR WOT Tinggi', isMap: true, reason: 'Target Base Map WOT rpm tinggi' },
-  maxRPM: { label: 'Max RPM', isMap: true, reason: 'Tinggi tabel & aliran batas' },
-  limiterRPM: { label: 'Limiter RPM', isMap: true, reason: 'Batas putaran → puncak torsi/power, AFR high' },
-  rpmStep: { label: 'RPM Step', isMap: true, reason: 'Pola kolom RPM tabel JUKEN' },
+  name: { label: "Nama Setup", isMap: false, reason: "Label saja" },
+  boreMM: { label: "Bore", isMap: true, reason: "Volume silinder → Base Map" },
+  strokeMM: {
+    label: "Stroke",
+    isMap: true,
+    reason: "Volume silinder → Base Map & kecepatan piston",
+  },
+  cylinders: {
+    label: "Silinder",
+    isMap: true,
+    reason: "Volume total → Base Map",
+  },
+  engineType: {
+    label: "Tipe Mesin",
+    isMap: false,
+    reason: "Hanya suara idle — tidak memengaruhi map",
+  },
+  oversizeMM: {
+    label: "Over Size",
+    isMap: true,
+    reason: "Bore asli → volume → Base Map",
+  },
+  compressionRatio: {
+    label: "Rasio Kompresi",
+    isMap: true,
+    reason: "Timing Ignition & volume burni",
+  },
+  intakeIVO: {
+    label: "IN Buka",
+    isMap: true,
+    reason: "Durasi cam → puncak torsi, EOI, ignition",
+  },
+  intakeIVC: {
+    label: "IN Tutup",
+    isMap: true,
+    reason: "Durasi cam → puncak torsi",
+  },
+  exhaustEVO: {
+    label: "EX Buka",
+    isMap: true,
+    reason: "Durasi cam → puncak torsi",
+  },
+  exhaustEVC: {
+    label: "EX Tutup",
+    isMap: true,
+    reason: "Durasi cam & overlap → puncak torsi, ignition",
+  },
+  injectorFlowCC: {
+    label: "Flow Injektor",
+    isMap: true,
+    reason: "Base Map & duty cycle",
+  },
+  injectorCount: {
+    label: "Jumlah Injektor",
+    isMap: true,
+    reason: "Base Map per injector",
+  },
+  fuelPressureBar: {
+    label: "Tekanan Bensin",
+    isMap: true,
+    reason: "Flow nyata injector → Base Map",
+  },
+  injectorDeadTime: {
+    label: "Dead Time",
+    isMap: true,
+    reason: "Offset durasi injeksi → Base Map",
+  },
+  veMax: { label: "VE Maks", isMap: true, reason: "Aliran udara → Base Map" },
+  altitudeM: {
+    label: "Ketinggian",
+    isMap: true,
+    reason: "Densitas udara → Base Map",
+  },
+  airTempC: {
+    label: "Suhu Intake",
+    isMap: true,
+    reason: "Densitas udara → Base Map",
+  },
+  exhaustP1MM: {
+    label: "Header P1",
+    isMap: true,
+    reason: "Puncak torsi & posisi powerband",
+  },
+  exhaustOutletMM: {
+    label: "Outlet Knalpot",
+    isMap: true,
+    reason: "Taper megaphone → puncak torsi",
+  },
+  octane: { label: "Oktan", isMap: true, reason: "Timing Ignition" },
+  injPhaseOffset: {
+    label: "Offset Fase Injeksi",
+    isMap: true,
+    reason: "Sudut EOI n Timing",
+  },
+  ignBaseOffset: {
+    label: "Offset Bacaan Ignition",
+    isMap: true,
+    reason: "Timing Ignition",
+  },
+  afrIdle: {
+    label: "AFR Idle",
+    isMap: true,
+    reason: "Target Base Map zona idle",
+  },
+  afrCruise: {
+    label: "AFR Cruising",
+    isMap: true,
+    reason: "Target Base Map zona menjelajah",
+  },
+  afrAccel: {
+    label: "AFR Akselerasi",
+    isMap: true,
+    reason: "Target Base Map zona menengah",
+  },
+  afrWot: {
+    label: "AFR WOT",
+    isMap: true,
+    reason: "Target Base Map zona beban penuh",
+  },
+  afrWotHigh: {
+    label: "AFR WOT Tinggi",
+    isMap: true,
+    reason: "Target Base Map WOT rpm tinggi",
+  },
+  maxRPM: {
+    label: "Max RPM",
+    isMap: true,
+    reason: "Tinggi tabel & aliran batas",
+  },
+  limiterRPM: {
+    label: "Limiter RPM",
+    isMap: true,
+    reason: "Batas putaran → puncak torsi/power, AFR high",
+  },
+  rpmStep: {
+    label: "RPM Step",
+    isMap: true,
+    reason: "Pola kolom RPM tabel JUKEN",
+  },
 };
 
 // Field yang DIPAKAI hitung map — value 0 / tidak wajar = tabel hasil salah.
@@ -578,37 +909,55 @@ export function specInputIssues(s: EngineSpec): SpecInputIssue[] {
     out.push({ key, label: SPEC_FIELDS[key].label, msg });
 
   // Dimensi mesin wajib > 0
-  if (!s.boreMM) add('boreMM', '0 — hasil Base Map ikut 0. Isi diameter piston.');
-  if (!s.strokeMM) add('strokeMM', '0 — hasil Base Map ikut 0. Isi langkah piston.');
-  if (!s.cylinders) add('cylinders', '0 — volume total 0.');
+  if (!s.boreMM)
+    add("boreMM", "0 — hasil Base Map ikut 0. Isi diameter piston.");
+  if (!s.strokeMM)
+    add("strokeMM", "0 — hasil Base Map ikut 0. Isi langkah piston.");
+  if (!s.cylinders) add("cylinders", "0 — volume total 0.");
 
   // Injector wajib
-  if (!s.injectorFlowCC) add('injectorFlowCC', '0 — Base Map jadi 0 ms (fallback tanpa injector).');
-  if (!s.injectorCount) add('injectorCount', '0 — tidak ada injector terhitung.');
-  if (!s.fuelPressureBar) add('fuelPressureBar', '0 — flow injector dianggapkan 0.5 bar (sangat berkurang).');
-  if (!s.injectorDeadTime) add('injectorDeadTime', '0 — PW tanpa dead time berlebih pendek di low rpm.');
+  if (!s.injectorFlowCC)
+    add("injectorFlowCC", "0 — Base Map jadi 0 ms (fallback tanpa injector).");
+  if (!s.injectorCount)
+    add("injectorCount", "0 — tidak ada injector terhitung.");
+  if (!s.fuelPressureBar)
+    add(
+      "fuelPressureBar",
+      "0 — flow injector dianggapkan 0.5 bar (sangat berkurang).",
+    );
+  if (!s.injectorDeadTime)
+    add(
+      "injectorDeadTime",
+      "0 — PW tanpa dead time berlebih pendek di low rpm.",
+    );
 
   // Udara wajib
-  if (!s.veMax) add('veMax', '0 — aliran udara 0 g/s, Base Map 0 ms.');
-  if (!s.maxRPM) add('maxRPM', '0 — tabel tidak punya tinggi kolom (pakai 16000).');
+  if (!s.veMax) add("veMax", "0 — aliran udara 0 g/s, Base Map 0 ms.");
+  if (!s.maxRPM)
+    add("maxRPM", "0 — tabel tidak punya tinggi kolom (pakai 16000).");
 
   // Ignition wajib
-  if (!s.compressionRatio) add('compressionRatio', '0 — timing ignition tidak terkompensasi CR.');
-  if (!s.octane) add('octane', '0 — timing ignition dianggapkan oktan 92.');
+  if (!s.compressionRatio)
+    add("compressionRatio", "0 — timing ignition tidak terkompensasi CR.");
+  if (!s.octane) add("octane", "0 — timing ignition dianggapkan oktan 92.");
 
   // AFR wajib (0 = pakai acuan bawaan)
-  if (!s.afrIdle) add('afrIdle', '0 — pakai acuan bawaan 13.8.');
-  if (!s.afrCruise) add('afrCruise', '0 — pakai acuan bawaan 13.8.');
-  if (!s.afrAccel) add('afrAccel', '0 — pakai acuan bawaan.');
-  if (!s.afrWot) add('afrWot', '0 — pakai acuan bawaan 12.4.');
+  if (!s.afrIdle) add("afrIdle", "0 — pakai acuan bawaan 13.8.");
+  if (!s.afrCruise) add("afrCruise", "0 — pakai acuan bawaan 13.8.");
+  if (!s.afrAccel) add("afrAccel", "0 — pakai acuan bawaan.");
+  if (!s.afrWot) add("afrWot", "0 — pakai acuan bawaan 12.4.");
 
   // Cam wajib (0 = durasi tidak valid)
-  if (!s.intakeIVO && !s.intakeIVC) add('intakeIVO', 'Buka+tutup intake 0 — durasi cam lenyap.');
-  if (!s.exhaustEVO && !s.exhaustEVC) add('exhaustEVO', 'Buka+tutup exhaust 0 — durasi cam lenyap.');
+  if (!s.intakeIVO && !s.intakeIVC)
+    add("intakeIVO", "Buka+tutup intake 0 — durasi cam lenyap.");
+  if (!s.exhaustEVO && !s.exhaustEVC)
+    add("exhaustEVO", "Buka+tutup exhaust 0 — durasi cam lenyap.");
 
   // Knalpot wajib
-  if (!s.exhaustP1MM) add('exhaustP1MM', '0 — puncak torsi/posisi powerband tanpa acuan header.');
-  if (!s.exhaustOutletMM) add('exhaustOutletMM', '0 — taper megaphone tanpa acuan outlet.');
+  if (!s.exhaustP1MM)
+    add("exhaustP1MM", "0 — puncak torsi/posisi powerband tanpa acuan header.");
+  if (!s.exhaustOutletMM)
+    add("exhaustOutletMM", "0 — taper megaphone tanpa acuan outlet.");
 
   return out;
 }
