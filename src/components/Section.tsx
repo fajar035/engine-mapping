@@ -12,8 +12,14 @@ interface Props {
 export default function Section({ title, children, block }: Props) {
   return (
     <View style={styles.wrap}>
-      <Text style={styles.title}>{title}</Text>
-      <View style={[styles.body, block && styles.bodyBlock]}>{children}</View>
+      <Text style={styles.title} numberOfLines={2}>
+        {title}
+      </Text>
+      {/* flexShrink 1 + minWidth 0: anak yang menolak menyusut tidak boleh
+          membuat kartu melebar ke kanan dan menyeret seluruh halaman. */}
+      <View style={[styles.body, block && styles.bodyBlock]}>
+        <View style={styles.inner}>{children}</View>
+      </View>
     </View>
   );
 }
@@ -36,21 +42,30 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    flexShrink: 1,
-    flexWrap: "wrap"
   },
   body: {
     padding: Spacing.lg,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    // Tanpa minWidth:0, anak yang content-nya lebih lebar dari kartu menolak
-    // menyusut lalu terpotong oleh overflow:'hidden' di wrap.
-    minWidth: 0,
+    alignItems: 'stretch',
+    // width 100% + flexShrink 1: tanpa ini, anak yang menolak menyusut membuat
+    // kartu ikut melebar ke kanan dan seluruh konten page terdorong keluar layar.
+    width: '100%',
+    flexShrink: 1,
   },
   bodyBlock: {
     flexDirection: 'column',
     justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    flexWrap: 'nowrap',
+    width: '100%',
+    flexShrink: 1,
+  },
+  inner: {
+    width: '100%',
+    flexShrink: 1,
     minWidth: 0,
+    alignSelf: 'stretch',
   },
 });

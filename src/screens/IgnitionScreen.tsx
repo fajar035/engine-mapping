@@ -6,13 +6,22 @@ import { baseIgnitionDeg, camEvents } from '../engine';
 import { useEngine } from '../engineState';
 import { heat } from '../heat';
 import { Colors, FontSize, Spacing } from '../theme';
+import { ECU_IGNITION_RPMS } from '../copy';
+import { toEcuGrid } from '../juken/protocol';
 import { TPS_STEPS } from '../types';
 import { useCopy } from '../useCopy';
 
 export default function IgnitionScreen() {
   const { spec, rpms, ignition, setIgnition, resetIgnition } = useEngine();
   const [edit, setEdit] = useState<{ r: number; c: number } | null>(null);
-  const { copiedTps, copiedAll, copy, copyAllMap } = useCopy(rpms);
+  // ECU ignition punya 31 kolom step 500, sedangkan peta dihitung step 250.
+  // Export harus lewat grid ECU, kalau tidak kolom 32+ diabaikan ECU.
+  const { copiedTps, copiedAll, copy, copyAllMap } = useCopy(ECU_IGNITION_RPMS);
+
+  const ecuGrid = useMemo(
+    () => toEcuGrid('ignition', ignition, rpms),
+    [ignition, rpms],
+  );
 
   const editCell = useCallback((r: number, c: number) => setEdit({ r, c }), []);
   const onSaveCell = useCallback(
@@ -30,11 +39,11 @@ export default function IgnitionScreen() {
         Math.abs(ignition[r][c] - baseIgnitionDeg(spec, rpms[c], TPS_STEPS[r])) > 0.2,
       colorOf: (r: number, c: number) => heat(ignition[r][c], 4, 40),
       onCopyRow: (r: number) =>
-        copy(TPS_STEPS[r], (c) => `${ignition[r][c].toFixed(1)}`),
+        copy(TPS_STEPS[r], (c) => `${ecuGrid[r][c].toFixed(1)}`),
       onCopyAll: () =>
-        copyAllMap([...TPS_STEPS], (r, c) => `${ignition[r][c].toFixed(1)}`),
+        copyAllMap([...TPS_STEPS], (r, c) => `${ecuGrid[r][c].toFixed(1)}`),
     }),
-    [ignition, spec, rpms, copy, copyAllMap],
+    [ecuGrid, ignition, spec, rpms, copy, copyAllMap],
   );
 
   return (
@@ -69,7 +78,7 @@ export default function IgnitionScreen() {
 
       {copiedAll && (
         <Text style={styles.copied}>
-          Tabel {rpms.length}×{TPS_STEPS.length} (RPM×TPS) terkopi — tempel di app/laptop
+          Tabel {ECU_IGNITION_RPMS.length}×{TPS_STEPS.length} (RPM step 500) terkopi — tempel di app/laptop
         </Text>
       )}
       {copiedTps !== null ? (

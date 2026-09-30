@@ -14,6 +14,7 @@ import IgnitionScreen from "./src/screens/IgnitionScreen";
 import InjectorScreen from "./src/screens/InjectorScreen";
 import SetupScreen from "./src/screens/SetupScreen";
 import GuideScreen from "./src/screens/GuideScreen";
+import JukenScreen from "./src/screens/JukenScreen";
 import DisclaimerModal from "./src/components/DisclaimerModal";
 
 SplashScreen.preventAutoHideAsync();
@@ -138,6 +139,16 @@ export default function App() {
                 title: "Inj. Timing",
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name="hourglass" size={size} color={color} />
+                )
+              }}
+            />
+            <Tab.Screen
+              name="JUKEN"
+              component={JukenScreen}
+              options={{
+                title: "JUKEN",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="bluetooth" size={size} color={color} />
                 )
               }}
             />

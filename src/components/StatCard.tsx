@@ -31,8 +31,12 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     marginBottom: Spacing.md,
     flexGrow: 1,
+    // minWidth 0 + flexShrink 1: teks panjang di dalam kartu harus menyusut,
+    // bukan memaksa kartu melebar melewati tepi kanan.
+    flexShrink: 1,
+    minWidth: 0,
   },
-  label: { color: Colors.textDim, fontSize: FontSize.xs, marginBottom: 4 },
-  value: { fontSize: FontSize.lg, fontWeight: '800' },
-  sub: { color: Colors.textDim, fontSize: FontSize.xs, marginTop: 4 },
+  label: { color: Colors.textDim, fontSize: FontSize.xs, marginBottom: 4, flexShrink: 1 },
+  value: { fontSize: FontSize.lg, fontWeight: '800', flexShrink: 1 },
+  sub: { color: Colors.textDim, fontSize: FontSize.xs, marginTop: 4, flexShrink: 1 },
 });

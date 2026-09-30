@@ -70,7 +70,7 @@ const GROUPS: GuideGroup[] = [
     items: [
       { label: 'Max RPM', unit: 'rpm', desc: 'Tinggi kolom tabel (format JUKEN mentok 16000 — sebaiknya jangan diubah, biar bentuk tabel cocok dengan JUKEN).' },
       { label: 'Limiter RPM', unit: 'rpm', desc: 'Batas putaran nyata dari ECU (limiter). Zona "WOT rpm tinggi" pada AFR dan titik puncak VE mengikuti angka ini, bukan Max RPM. 0 = ikut Max RPM.' },
-      { label: 'Step RPM', unit: 'rpm', desc: 'Selisih antar baris RPM (mis. 250).' },
+      { label: 'Step RPM', unit: 'rpm', desc: 'Selisih antar kolom RPM saat menghitung (mis. 250). Peta dihitung di step ini, lalu diekspor ke grid ECU: Base/Fuel/Injector 61 kolom step 250, Ignition 31 kolom step 500. Jangan diubah kecuali ECU-mu memang grid-nya lain.' },
     ],
   },
   {

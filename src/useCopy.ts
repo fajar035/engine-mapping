@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { copyAll, copyColumn } from './copy';
 
-export function useCopy(rpms: number[]) {
+export function useCopy(ecuRpms: readonly number[]) {
   const [copiedTps, setCopiedTps] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -17,18 +17,18 @@ export function useCopy(rpms: number[]) {
 
   const copy = useCallback(
     async (tps: number, valueAt: (i: number) => string) => {
-      await copyColumn(rpms, tps, valueAt);
+      await copyColumn([...ecuRpms], tps, valueAt);
       flash(() => setCopiedTps(tps));
     },
-    [rpms],
+    [ecuRpms],
   );
 
   const copyAllMap = useCallback(
     async (tps: number[], valueAt: (r: number, c: number) => string) => {
-      await copyAll(rpms, tps, valueAt);
+      await copyAll(ecuRpms, tps, valueAt);
       flash(() => setCopiedAll(true));
     },
-    [rpms],
+    [ecuRpms],
   );
 
   return { copiedTps, copiedAll, copy, copyAllMap };
