@@ -367,8 +367,8 @@ export default function SetupScreen() {
           unit="°C"
           step={1}
           min={0}
-          max={60}
-          hint="suhu udara hisap; makin panas makin encer udara"
+          max={80}
+          hint="sudah dipanaskan mesin/knalpot, BUKAN suhu luar. 20 = netral · 35 harian kota · 50+ kalau diam/macet. Makin panas → base map makin kering"
           onChange={(v) => updateSpec({ airTempC: v })}
         />
       </Section>

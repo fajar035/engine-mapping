@@ -27,8 +27,9 @@ export function airDensityGL(s: EngineSpec): number {
   const T = tC + 273.15;
   const P = h > 0 ? P0 * Math.pow(1 - (lapse * h) / T0, 5.2559) : P0;
   const rho = (P / (R * T)) * 1000; // kg/m³ -> g/L
-  // Normalisasi ke referensi 1.184 g/L (20°C, 1 atm) supaya nilai default
-  // (altitude 0, suhu 0) identik dengan konstanta lama di map & HP estimasi.
+  // Normalisasi ke referensi 1.184 g/L (20°C, 1 atm) supaya airTempC=20 (atau 0)
+  // identik dengan konstanta lama di map & estimasi HP. Di atas 20°C densitas
+  // turun, jadi app menulis lebih sedikit fuel untuk AFR yang sama.
   const ref = (P0 / (R * 293.15)) * 1000;
   return round2((rho / ref) * AIR_DENSITY_G_L_REF);
 }
@@ -72,7 +73,11 @@ export function defaultSpec(): EngineSpec {
     // Pasokan udara
     veMax: 0.98,
     altitudeM: 0, // koreksi densitas: 0 = permukaan laut (netral)
-    airTempC: 60, // 20°C = netral (sama dgn referensi 1.184 g/L lama)
+    // Suhu UDARA INTAKE (sudah dipanaskan mesin/knalpot), bukan suhu luar.
+    // 20°C = netral. Untuk motor harian di perkotaan tropis (ambient 28-33°C,
+    // knalpot memanaskan intake jadi 35-55°C) pakai 35°C sebagai titik awal.
+    // Makin tinggi -> udara makin ringan -> base map otomatis lebih kering.
+    airTempC: 35,
 
     // Knalpot (drag pipe)
     exhaustP1MM: 30,
@@ -121,7 +126,7 @@ export function emptySpec(): EngineSpec {
     injectorDeadTime: 0,
     veMax: 0,
     altitudeM: 0,
-    airTempC: 20, // netral
+    airTempC: 35, // intake harian perkotaan; 20°C = netral
     exhaustP1MM: 0,
     exhaustOutletMM: 0, // dipakai rumus (taper megaphone) — alert bila 0
     octane: 0,
@@ -362,7 +367,6 @@ export function injectorFlow_gPerMs(s: EngineSpec): number {
   return (ccAtPress * FUEL_DENSITY_G_CC) / 60000;
 }
 
-// Base Map (ms): durasi injeksi default per RPM × TPS (format JUKEN)
 // Base Map (ms): durasi injeksi default per RPM × TPS (format JUKEN)
 export function baseMapMs(s: EngineSpec, rpm: number, tpsPct: number): number {
   return round2(pulseWidthMs(s, rpm, afrFor(s, rpm, tpsPct), tpsPct));
@@ -831,7 +835,7 @@ export const SPEC_FIELDS: Record<keyof EngineSpec, SpecFieldMeta> = {
   airTempC: {
     label: "Suhu Intake",
     isMap: true,
-    reason: "Densitas udara → Base Map",
+    reason: "Densitas udara → Base Map. Intake (bukan ambient): 20°C netral, 35°C harian kota, 50°C+ kalau diam/macet",
   },
   exhaustP1MM: {
     label: "Header P1",

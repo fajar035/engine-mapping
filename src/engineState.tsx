@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
-import { baseIgnitionDeg, baseMapMs, defaultSpec, emptySpec, rpmGrid } from './engine';
+import {
+  baseIgnitionDeg,
+  baseMapMs,
+  defaultSpec,
+  emptySpec,
+  rpmGrid,
+} from './engine';
 import type { EngineSpec, Map2D, SetupKey } from './types';
 import { TPS_STEPS } from './types';
 

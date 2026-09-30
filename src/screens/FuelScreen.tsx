@@ -127,4 +127,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   footnote: { color: Colors.textDim, fontSize: FontSize.xs, marginTop: Spacing.md, lineHeight: 16 },
+  warnNote: { color: Colors.warn, fontSize: FontSize.xs, marginTop: Spacing.sm, lineHeight: 16 },
 });

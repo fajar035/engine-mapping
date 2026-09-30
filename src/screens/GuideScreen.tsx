@@ -46,7 +46,7 @@ const GROUPS: GuideGroup[] = [
       { label: 'Dead Time', unit: 'ms', desc: 'Jeda antara injector diperintah nyala sampai bensin benar-benar keluar (reaksi mekanik).' },
       { label: 'VE Maks', unit: 'x', desc: 'Efisiensi pengisian silinder (1.00 = penuh 100%). Standar ~0.90–0.95, mesin sudah "napas" luwes bisa 1.00+.' },
       { label: 'Ketinggian', unit: 'm', desc: 'Ketinggian lokasi di atas permukaan laut. Udara makin tinggi makin tipis (lebih sedikit oksigen) → map jadi lebih kurus karena model mengoreksi densitas.' },
-      { label: 'Suhu Intake', unit: '°C', desc: 'Suhu udara yang masuk mesin (udara luar sekitar). Udara panas lebih encer → model mengoreksi densitas otomatis.' },
+      { label: 'Suhu Intake', unit: '°C', desc: 'Suhu udara yang masuk mesin SETELAH dipanaskan mesin & knalpot — bukan suhu udara luar. 20°C netral; harian di perkotaan tropis sekitar 35°C; 50°C+ kalau motor diam lama / macet. Makin panas, udara makin encer sehingga model menulis base map lebih kering.' },
     ],
   },
   {
