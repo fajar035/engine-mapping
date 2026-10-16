@@ -207,7 +207,7 @@ export interface EngineSpec {
   rpmStep: number;
 }
 
-export type SetupKey = 'motor' | 'umum';
+export type SetupKey = 'motor' | 'umum' | 'vario125';
 
 export type Map2D = number[][];
 

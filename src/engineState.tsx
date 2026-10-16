@@ -5,6 +5,7 @@ import {
   defaultSpec,
   emptySpec,
   rpmGrid,
+  stockVario125LedNewK60RSpec,
 } from './engine';
 import type { EngineSpec, Map2D, SetupKey } from './types';
 import { TPS_STEPS } from './types';
@@ -32,6 +33,7 @@ interface AppState {
   profiles: {
     motor: ProfileState;
     umum: ProfileState;
+    vario125: ProfileState;
   };
 }
 
@@ -105,7 +107,8 @@ function sanitizeProfile(
 }
 
 function sanitizeState(raw: Partial<AppState> | null): AppState {
-  const hasProfiles = !!raw?.profiles?.motor || !!raw?.profiles?.umum;
+  const hasProfiles =
+    !!raw?.profiles?.motor || !!raw?.profiles?.umum || !!raw?.profiles?.vario125;
   return {
     active: hasProfiles && raw?.active ? raw.active : 'motor',
     profiles: {
@@ -114,6 +117,7 @@ function sanitizeState(raw: Partial<AppState> | null): AppState {
         defaultSpec,
       ),
       umum: sanitizeProfile(raw?.profiles?.umum, emptySpec),
+      vario125: sanitizeProfile(raw?.profiles?.vario125, stockVario125LedNewK60RSpec),
     },
   };
 }

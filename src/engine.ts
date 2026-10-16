@@ -143,6 +143,62 @@ export function emptySpec(): EngineSpec {
   };
 }
 
+// Honda Vario 125 LED New (K60R, 2018-2022) kondisi standar pabrik.
+// Angka terkonfirmasi AHM/manual: bore-stroke, kompresi, tenaga-torsi, tekanan
+// rail 3 bar, header knalpot 26 mm, rekomendasi RON 92.
+// Estimasi (tanpa sumber resmi): debit injektor 84 cc/min, event noken, limiter
+// 10500 rpm, outlet silencer 35 mm — silakan koreksi bila ada data dyno/busur derajat.
+export function stockVario125LedNewK60RSpec(): EngineSpec {
+  return {
+    name: "Vario 125 LED New · K60R std",
+    // Mesin
+    boreMM: 52.4,
+    strokeMM: 57.9,
+    cylinders: 1,
+    engineType: "single4", // hanya suara idle
+    oversizeMM: 0,
+    compressionRatio: 11.0,
+
+    // Noken As standar (estimasi: durasi ~228°, overlap ~18°)
+    intakeIVO: 8, // IN buka °BTDC
+    intakeIVC: 40, // IN tutup °ABDC
+    exhaustEVO: 45, // EX buka °BBDC
+    exhaustEVC: 10, // EX tutup °ATDC
+
+    // Injector standar (back-calc duty ~56% di puncak daya)
+    injectorFlowCC: 84,
+    injectorCount: 1,
+    fuelPressureBar: 3,
+    injectorDeadTime: 0.65,
+
+    // Pasokan udara
+    veMax: 1.0,
+    altitudeM: 0,
+    airTempC: 35,
+
+    // Knalpot standar
+    exhaustP1MM: 26,
+    exhaustOutletMM: 35,
+
+    // Bahan bakar & pembacaan ECU
+    octane: 92, // Pertamax (min 88/Pertalite masih boleh)
+    injPhaseOffset: 0,
+    ignBaseOffset: 0,
+
+    // Target AFR kondisi standar
+    afrIdle: 13.8,
+    afrCruise: 13.8,
+    afrAccel: 13.0,
+    afrWot: 12.6,
+    afrWotHigh: 12.4,
+
+    // Grid mapping
+    maxRPM: 16000,
+    limiterRPM: 10500,
+    rpmStep: 250,
+  };
+}
+
 export function boreRealMM(s: EngineSpec): number {
   return s.boreMM + s.oversizeMM;
 }

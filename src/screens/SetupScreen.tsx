@@ -23,7 +23,8 @@ import type { SetupKey } from "../types";
 
 const SETUP_OPTIONS: { key: SetupKey; label: string }[] = [
   { key: "motor", label: "Motor Gw (default)" },
-  { key: "umum", label: "Setup Umum (kosong)" }
+  { key: "umum", label: "Setup Umum (kosong)" },
+  { key: "vario125", label: "Vario 125 LED New (standar)" }
 ];
 
 export default function SetupScreen() {
